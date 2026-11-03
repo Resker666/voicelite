@@ -1,13 +1,16 @@
 using VoiceLite.Core;
 using System.Text;
+using System.Diagnostics;
 namespace VoiceLite.Infrastructure;
-public sealed class GenerationService(string dataRoot, IEngineManager manager, ITtsApiClient? client = null, IAudioImportService? importer = null) : IGenerationService
+public sealed class GenerationService(string dataRoot, IEngineManager manager, ITtsApiClient? client = null, IAudioImportService? importer = null, IEngineDeviceResolver? deviceResolver = null) : IGenerationService
 {
     private readonly SemaphoreSlim gate = new(1, 1);
     public async Task<GeneratedAudio> GenerateAsync(GenerationInput input, IProgress<string> progress, CancellationToken cancellationToken)
     {
         if (!await gate.WaitAsync(0, cancellationToken)) throw new VoiceLiteException("已有生成任务正在进行，请等待或取消。");
         string? reference = null;
+        string deviceName = "";
+        double loadSeconds = 0, inferenceSeconds = 0;
         try
         {
             if (string.IsNullOrWhiteSpace(input.Text) || input.Text.Length > 2000) throw new VoiceLiteException("请填写 1–2000 字的合成文字，较长内容可以分段生成。");
@@ -21,16 +24,21 @@ public sealed class GenerationService(string dataRoot, IEngineManager manager, I
             else
             {
                 if (string.IsNullOrWhiteSpace(input.PromptText)) throw new VoiceLiteException("请填写参考录音的实际文字。");
-                progress.Report("正在检查并转换参考录音…");
+                progress.Report("正在检查计算设备…");
+                var options = await (deviceResolver ?? new EngineDeviceResolver()).ResolveAsync(input.EngineRoot, dataRoot, input.Device, cancellationToken);
+                deviceName = options.UseGpu ? "NVIDIA CUDA" : "CPU（FP32）";
+                progress.Report($"使用 {deviceName}，正在检查并转换参考录音…");
                 reference = await (importer ?? new AudioImportService()).ImportAsync(input.ReferencePath,
                     Path.Combine(input.EngineRoot, "runtime/ffmpeg.exe"), Path.Combine(dataRoot, "references"), cancellationToken);
-                progress.Report("正在启动本地引擎并加载模型，首次可能需要一分钟…");
-                var options = new EngineOptions(Path.GetFullPath(input.EngineRoot), Path.GetFullPath(dataRoot));
+                progress.Report($"使用 {deviceName} 加载模型，请稍候…");
+                var clock = Stopwatch.StartNew();
                 var session = await manager.StartAsync(options, cancellationToken);
-                progress.Report("正在合成语音，请稍候…");
+                loadSeconds = clock.Elapsed.TotalSeconds; clock.Restart();
+                progress.Report($"使用 {deviceName} 合成语音，请稍候…");
                 bytes = await (client ?? new TtsApiClient()).GenerateAsync(session,
-                    new(input.Text, input.TextLanguage, reference, input.PromptText, input.PromptLanguage),
+                    new(input.Text, input.TextLanguage, reference, input.PromptText, input.PromptLanguage) { UseGpu = options.UseGpu },
                     options.RequestTimeout ?? TimeSpan.FromMinutes(3), cancellationToken);
+                inferenceSeconds = clock.Elapsed.TotalSeconds;
             }
             var wave = WaveInfo.Inspect(bytes);
             var results = Path.Combine(dataRoot, "results"); Directory.CreateDirectory(results);
@@ -42,8 +50,8 @@ public sealed class GenerationService(string dataRoot, IEngineManager manager, I
                 cancellationToken.ThrowIfCancellationRequested(); File.Move(temporary, path);
             }
             finally { if (File.Exists(temporary)) File.Delete(temporary); }
-            new AppLog(dataRoot).Write("generation", $"{(input.IsMock ? "mock" : "real")}; seconds={wave.DurationSeconds:F2}; rate={wave.SampleRate}");
-            return new(path, wave, input.IsMock);
+            new AppLog(dataRoot).Write("generation", $"{(input.IsMock ? "mock" : "real")}; device={deviceName}; load_seconds={loadSeconds:F3}; inference_seconds={inferenceSeconds:F3}; seconds={wave.DurationSeconds:F2}; rate={wave.SampleRate}");
+            return new(path, wave, input.IsMock, deviceName);
         }
         catch (Exception exception)
         {

@@ -1,6 +1,7 @@
 using System.Text.Json;
+using VoiceLite.Core;
 namespace VoiceLite.Infrastructure;
-public sealed record UserSettings(string EngineRoot = "", string ReferencePath = "", string PromptText = "", string PromptLanguage = "zh", string TextLanguage = "zh");
+public sealed record UserSettings(string EngineRoot = "", string ReferencePath = "", string PromptText = "", string PromptLanguage = "zh", string TextLanguage = "zh", ComputeDevice Device = ComputeDevice.Auto);
 public sealed class SettingsStore(string dataRoot)
 {
     private readonly string root = dataRoot;
@@ -10,7 +11,8 @@ public sealed class SettingsStore(string dataRoot)
         try
         {
             if (!File.Exists(FilePath)) return new();
-            return JsonSerializer.Deserialize<UserSettings>(await File.ReadAllTextAsync(FilePath)) ?? new();
+            var settings = JsonSerializer.Deserialize<UserSettings>(await File.ReadAllTextAsync(FilePath)) ?? new();
+            return Enum.IsDefined(settings.Device) ? settings : settings with { Device = ComputeDevice.Auto };
         }
         catch (Exception exception) when (exception is JsonException or IOException or UnauthorizedAccessException)
         { new AppLog(root).Write("settings", "设置无法读取，已恢复默认值。"); return new(); }

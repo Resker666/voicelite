@@ -1,6 +1,5 @@
 using VoiceLite.Core;
 using System.Security.Cryptography;
-using System.Diagnostics;
 namespace VoiceLite.Infrastructure;
 
 public sealed class EnvironmentProbe : IEnvironmentProbe
@@ -23,22 +22,7 @@ public sealed class EnvironmentProbe : IEnvironmentProbe
             var hash = Convert.ToHexString(await SHA256.HashDataAsync(stream, cancellationToken));
             items.Add(new("引擎版本", hash == EngineLayout.ApiSha256, hash == EngineLayout.ApiSha256 ? "匹配已审计的本地 API 快照" : "API 与本版本验证的快照不同，请使用匹配的离线包。"));
         }
-        if (options.UseGpu && items.All(x => x.Passed))
-        {
-            var gpuTool = Path.Combine(Environment.SystemDirectory, "nvidia-smi.exe");
-            if (!File.Exists(gpuTool)) items.Add(new("NVIDIA 驱动", false, "未找到 NVIDIA 驱动工具；首版请使用具备可用 NVIDIA 驱动的电脑。CPU 模式尚未验收。"));
-            else
-            {
-                try
-                {
-                    var info = new ProcessStartInfo(gpuTool);
-                    info.ArgumentList.Add("--query-gpu=name,driver_version"); info.ArgumentList.Add("--format=csv,noheader");
-                    var gpu = await ProcessRunner.RunAsync(info, TimeSpan.FromSeconds(10), cancellationToken);
-                    items.Add(new("NVIDIA 驱动", gpu.ExitCode == 0 && !string.IsNullOrWhiteSpace(gpu.Output), gpu.ExitCode == 0 ? "已识别 GPU/驱动；CUDA 和显存将在模型加载时验证。" : "无法访问 NVIDIA GPU，请检查驱动。"));
-                }
-                catch (VoiceLiteException) { items.Add(new("NVIDIA 驱动", false, "显卡检测未完成，请检查 NVIDIA 驱动后重试。")); }
-            }
-        }
+        items.Add(new("计算设备", true, options.UseGpu ? "已选择 NVIDIA CUDA；实际 CUDA 可用性由包内 PyTorch 检测。" : "已选择 CPU / FP32，不要求 NVIDIA 驱动。"));
         return new(items);
     }
 }

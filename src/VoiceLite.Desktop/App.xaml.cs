@@ -24,8 +24,15 @@ public partial class App : Application
             var vm = new MainViewModel(new GenerationService(dataRoot, manager)) {
                 EngineRoot = engineRoot, ReferencePath = Arg("--reference") ?? settings.ReferencePath,
                 PromptText = settings.PromptText, PromptLanguage = settings.PromptLanguage, TextLanguage = settings.TextLanguage,
-                IsMock = e.Args.Contains("--mock")
+                IsMock = e.Args.Contains("--mock"), Device = settings.Device
             };
+            if (Arg("--device") is { } device)
+            {
+                vm.Device = device.ToLowerInvariant() switch {
+                    "auto" => ComputeDevice.Auto, "nvidia" => ComputeDevice.Nvidia, "cpu" => ComputeDevice.Cpu,
+                    _ => throw new VoiceLiteException("无效的 --device 参数，请使用 auto、nvidia 或 cpu。")
+                };
+            }
             var window = new MainWindow(vm, manager, settingsStore, dataRoot);
             MainWindow = window;
             if (smoke)
@@ -53,6 +60,12 @@ public partial class App : Application
                 };
             }
             window.Show();
+        }
+        catch (VoiceLiteException exception)
+        {
+            if (smoke) await File.WriteAllTextAsync(Path.Combine(dataRoot, "ui-smoke.json"), JsonSerializer.Serialize(new { passed = false, error = exception.Message }));
+            else MessageBox.Show(exception.Message, "VoiceLite");
+            Shutdown(1);
         }
         catch (Exception exception)
         {

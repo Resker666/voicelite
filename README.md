@@ -10,17 +10,19 @@ WPF / .NET 8 / MVVM，复用 [GPT-SoVITS](https://github.com/RVC-Boss/GPT-SoVITS
 
 ## 普通用户如何使用
 
-以下是完整离线候选包已验证的使用流程，下载包尚未公开发布。从源码运行请看下方“本地开发”。
+以下是完整离线候选包的使用流程，下载包尚未公开发布。从源码运行请看下方“本地开发”。0.1.2 客户端累积包含 OGG 修复和设备选择；已有 0.1.0 基包可以直接更新到 0.1.2，无须先叠加 0.1.1，保留原来的 `engine` 文件夹和模型。升级步骤见 [离线候选包说明](docs/OFFLINE_PACKAGE.md)。
 
 1. 获取完整离线包并解压整个文件夹，双击 **VoiceLite.exe**。
 2. 选择一段 **3–10 秒**、清晰的 WAV、MP3 或 OGG 录音，并填写录音实际说出的文字。
 3. 输入合成文字，点击 **生成语音**，完成后试听或保存 WAV。
 
-包内包括 .NET、Python、推理依赖、FFmpeg 和一套模型；日常使用无须命令行、Conda 或手动安装 Python。VoiceLite 自动寻找旁边的 `engine` 文件夹，请保留完整目录。首次加载模型可能需要一分钟；同一次运行中后续生成会复用引擎。
+包内包括 .NET、Python、推理依赖、FFmpeg 和一套模型；日常使用无须命令行、Conda 或手动安装 Python。VoiceLite 自动寻找旁边的 `engine` 文件夹，请保留完整目录。首次加载模型需要等待，CPU 通常更慢；同一次运行中后续生成会复用引擎。
 
-取消会停止并回收本应用的引擎；下一次生成重新加载模型。关闭窗口同样回收托管进程。程序记住上次的参考录音、文字和语言。
+“运行设置”可选择 **自动 / NVIDIA / CPU**，默认自动：包内 PyTorch 检测到可用 CUDA 时使用 NVIDIA，否则使用 CPU。CPU 使用 FP32；Intel 显卡和 NPU 尚未接入加速。“检查环境”和生成使用相同的设备选择；资源缺失、模型错误或显存不足会给出诊断。
 
-验证设备：Windows 11 x64、RTX 4070 Laptop 8GB、NVIDIA 驱动 610.74。驱动是系统前置条件；首版优先支持 NVIDIA，CPU、其它 GPU 和最低显存尚未验收。无可用驱动时给出中文诊断。
+取消会停止并回收本应用的引擎；下一次生成重新加载模型。关闭窗口同样回收托管进程。程序记住上次的参考录音、文字、语言和设备选择。
+
+历史 NVIDIA 验证设备：Windows 11 x64、RTX 4070 Laptop 8GB、驱动 610.74；选择 NVIDIA 模式需要可用驱动和 CUDA。0.1.2 的 CPU 真实合成及耗时、内存结果以 [测试报告](docs/TEST_REPORT.md) 为准，不能将界面模拟或单元测试通过当作 CPU 推理验收。其它 GPU 和最低显存尚未验收。
 
 “模拟演示”只生成提示音，并明确提示未运行真实模型。
 
@@ -28,10 +30,10 @@ WPF / .NET 8 / MVVM，复用 [GPT-SoVITS](https://github.com/RVC-Boss/GPT-SoVITS
 
 ## 本地开发
 
-Windows x64，需要 `global.json` 固定的 .NET SDK 8.0.427。可以使用自己的同版本 SDK，或执行我们提供的脚本把官方 SDK 下载到本项目 `.tools`（约数百 MB，校验 SHA-512，不修改系统 SDK）：
+Windows x64，需要 `global.json` 固定的 .NET SDK 8.0.427。可以使用自己的同版本 SDK，或在缺少 `.tools/dotnet/dotnet.exe` 时执行下面的 SDK 引导脚本（需联网下载约数百 MB，校验 SHA-512，不修改系统 SDK）。已携带 `.tools` 的迁移环境可跳过下载：
 
 ```powershell
-.\tools\bootstrap-dotnet.ps1
+if (!(Test-Path .\.tools\dotnet\dotnet.exe)) { .\tools\bootstrap-dotnet.ps1 }
 $env:DOTNET_ROOT = "$PWD\.tools\dotnet"
 $env:DOTNET_CLI_HOME = "$PWD\.tools\cli-home"
 $env:NUGET_PACKAGES = "$PWD\.tools\nuget"
@@ -39,6 +41,14 @@ $env:NUGET_PACKAGES = "$PWD\.tools\nuget"
 & "$env:DOTNET_ROOT\dotnet.exe" build VoiceLite.sln --no-restore
 & "$env:DOTNET_ROOT\dotnet.exe" test VoiceLite.sln --no-restore
 & "$env:DOTNET_ROOT\dotnet.exe" run --project src/VoiceLite.Desktop --no-build
+```
+
+三个产品项目已显式声明 `win-x64` 还原目标，与提交的锁文件一致；测试和测试辅助项目保留普通 .NET 目标。因此干净检出可以直接对整个解决方案执行 `restore --locked-mode`，不需要修改锁文件或分项目还原。
+
+已携带完整 `.tools/nuget` 缓存时，可将上面的还原命令替换为下列命令，仅使用本地包源；缺包时会明确失败，不会转而下载依赖：
+
+```powershell
+& "$env:DOTNET_ROOT\dotnet.exe" restore VoiceLite.sln --locked-mode --source "$PWD\.tools\nuget"
 ```
 
 未放入内置引擎时，可在“运行设置”选择已有兼容整合包，或选择模拟演示。当前只接受审计过的本地 API SHA-256 快照，详见 [上游审计](docs/UPSTREAM_AUDIT.md)。生产代码没有开发机引擎路径。

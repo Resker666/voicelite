@@ -1,5 +1,33 @@
 # 本地离线候选包
 
+## 0.1.2 累积客户端更新
+
+0.1.2包含已有OGG导入/试听修复及“自动 / NVIDIA / CPU”设备选择。原0.1.0基包可以直接升级，不需要先应用0.1.1；引擎和模型保持不变，原8.50GB ZIP保留。
+
+公司电脑已应用至 `dist/离线基包/VoiceLite-0.1.0-win-x64-offline-local/VoiceLite 离线验证 0.1.0`，目录名保留，EXE版本为0.1.2.0。更新/回滚/再次更新均实际通过，主备份在 `dist/VoiceLite-0.1.2-backup`。更新后40621个文件完整SHA校验通过；40139个引擎文件与更新前一致。更新ZIP大小2179813字节，SHA256为 `15d3400cd1ce3e0436abb960ab1ab601097095786f9ad5ef374b385664c143d3`。
+
+更新包为 `dist/VoiceLite-0.1.2-client-update.zip`。先关闭目标目录中的客户端和引擎，解压更新包到独立目录。使用完整包内Python执行校验和更新：
+
+```powershell
+$package = '<现有完整包目录，包含VoiceLite.exe和engine>'
+$update = '<0.1.2更新包解压目录>'
+$python = Join-Path $package 'engine/runtime/python.exe'
+& $python -B tools/apply-client-update.py $update $package --check
+& $python -B tools/apply-client-update.py $update $package --backup '<新的备份目录>'
+```
+
+备份目录应位于完整包和更新目录之外，且此前不存在。更新前核对引擎profile/API、文件哈希及活动进程；只替换客户端、说明和清单，保存旧文件，更新失败时自动恢复。保留备份，手动恢复命令为：
+
+```powershell
+& $python -B tools/apply-client-update.py --rollback '<备份目录>' $package
+```
+
+也可使用更新包内的 `apply-client-update.py`，替换命令中的脚本路径。回滚会拒绝覆盖升级后再次被人工修改的文件。
+
+CPU代码与自动化测试通过，真实合成尚未验收：公司电脑在加载阶段触发系统内存保护，按用户要求延期。NVIDIA新版本真实回归也需回到具备对应显卡的电脑。具体证据见 `TEST_REPORT.md`。
+
+下面保留0.1.1与原始基包的历史信息；旧路径是当时开发机上的位置。
+
 > **0.1.1 OGG 修复：**现有目录内的 VoiceLite.exe 已更新到0.1.1，支持OGG导入和自动转换试听。下面8.50GB ZIP是0.1.0历史基包，重新解压它时请叠加 `dist/VoiceLite-0.1.1-ogg-update.zip`（约2.18MB）；模型保持不变，不必重新下载。见 [OGG_FIX.md](OGG_FIX.md)。
 
 状态：**可在本机运行的完整离线候选；未获准公开再分发，不是干净 Windows 验收完成版。**

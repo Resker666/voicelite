@@ -19,11 +19,13 @@ public partial class MainWindow : Window
     private readonly MediaPlayer player = new();
     private readonly PlaybackQueue playbackQueue = new();
     private Task? cleanup;
+    private Task environmentCheck = Task.CompletedTask;
     private bool mayClose;
     public MainWindow(MainViewModel vm, IEngineManager manager, SettingsStore store, string dataRoot)
     {
         this.vm = vm; this.manager = manager; this.store = store; this.dataRoot = dataRoot;
         InitializeComponent(); DataContext = vm;
+        Title = $"VoiceLite {typeof(App).Assembly.GetName().Version?.ToString(3)} · 本地声音克隆";
         EngineSettings.IsExpanded = string.IsNullOrWhiteSpace(vm.EngineRoot) && !vm.IsMock;
     }
     private void SelectEngine_Click(object sender, RoutedEventArgs e)
@@ -48,12 +50,16 @@ public partial class MainWindow : Window
     }
     private async void Probe_Click(object sender, RoutedEventArgs e)
     {
-        try
+        if (!vm.CanEdit || cleanup is not null) return;
+        environmentCheck = vm.CheckEnvironmentAsync(async token =>
         {
-            var report = await new EnvironmentProbe().InspectAsync(new(vm.EngineRoot, dataRoot));
-            MessageBox.Show(this, report.IsReady ? "引擎入口和必要资源已找到；模型加载和真实合成将在生成时验证。" : string.Join("\n", report.Items.Where(x => !x.Passed).Select(x => $"{x.Name}：{x.Message}")), "环境检查");
-        }
-        catch (Exception exception) { vm.ReportError($"环境检查失败（{exception.GetType().Name}），请检查目录权限。"); }
+            var options = await new EngineDeviceResolver().ResolveAsync(vm.EngineRoot, dataRoot, vm.Device, token);
+            var report = await new EnvironmentProbe().InspectAsync(options, token);
+            var device = options.UseGpu ? "NVIDIA CUDA" : "CPU（FP32）";
+            if (!report.IsReady) throw new VoiceLiteException(string.Join("；", report.Items.Where(x => !x.Passed).Select(x => $"{x.Name}：{x.Message}")));
+            return $"计算设备：{device}。必要资源已找到，真实合成将在生成时验证。";
+        });
+        await environmentCheck;
     }
     private async void PlayReference_Click(object sender, RoutedEventArgs e) => await PlayWithMessageAsync(vm.ReferencePath);
     private async void PlayResult_Click(object sender, RoutedEventArgs e) => await PlayWithMessageAsync(vm.ResultPath);
@@ -118,7 +124,7 @@ public partial class MainWindow : Window
         var playbackSeconds = await PlayAndWaitAsync(playbackCheck ?? exported);
         var info = WaveInfo.Inspect(await File.ReadAllBytesAsync(exported));
         await File.WriteAllTextAsync(Path.Combine(dataRoot, "ui-smoke.json"), JsonSerializer.Serialize(new {
-            passed = true, mock = vm.IsMock, status = vm.Status, seconds = info.DurationSeconds,
+            passed = true, mock = vm.IsMock, actual_device = vm.ActualDevice, requested_device = vm.Device.ToString(), client_version = typeof(App).Assembly.GetName().Version?.ToString(3), status = vm.Status, seconds = info.DurationSeconds,
             sample_rate = info.SampleRate, playback_completed = true, playback_checked_seconds = playbackSeconds,
             playback_source_format = Path.GetExtension(playbackCheck ?? exported).ToLowerInvariant(), elapsed_seconds = clock.Elapsed.TotalSeconds
         }, new JsonSerializerOptions { WriteIndented = true }));
@@ -131,13 +137,14 @@ public partial class MainWindow : Window
     }
     private async Task CleanupAsync()
     {
-        StopPlayback(); vm.GenerateCommand.Cancel();
+        StopPlayback(); vm.CancelCurrentOperation();
         try
         {
             try { await playbackQueue.CloseAsync(); } catch (OperationCanceledException) { } catch (Exception exception) { new AppLog(dataRoot).Write("preview-close", exception.GetType().Name); }
+            await environmentCheck;
             await manager.StopAsync();
             if (vm.GenerateCommand.ExecutionTask is { } pending) await pending;
-            await store.SaveAsync(new(vm.EngineRoot, vm.ReferencePath, vm.PromptText, vm.PromptLanguage, vm.TextLanguage));
+            await store.SaveAsync(new(vm.EngineRoot, vm.ReferencePath, vm.PromptText, vm.PromptLanguage, vm.TextLanguage, vm.Device));
         }
         catch (Exception exception) { new AppLog(dataRoot).Write("close", exception.GetType().Name); }
         finally { await manager.DisposeAsync(); player.Close(); }

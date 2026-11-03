@@ -55,12 +55,17 @@ public sealed class EngineProcessManager(IEnvironmentProbe? probe = null) : IEng
             info.Environment["PYTHONDONTWRITEBYTECODE"] = "1"; info.Environment["PYTHONUNBUFFERED"] = "1";
             info.Environment["HF_HUB_OFFLINE"] = "1"; info.Environment["TRANSFORMERS_OFFLINE"] = "1";
             info.Environment["HF_HUB_DISABLE_TELEMETRY"] = "1"; info.Environment["G2PW"] = "0";
+            if (!options.UseGpu)
+            {
+                var threads = Math.Min(4, Environment.ProcessorCount).ToString();
+                info.Environment["OMP_NUM_THREADS"] = threads; info.Environment["MKL_NUM_THREADS"] = threads;
+            }
             lifetime = new(); lastDiagnostic = null;
             using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, lifetime.Token);
             deadline.CancelAfter(options.StartupTimeout ?? TimeSpan.FromSeconds(180));
             void OnLine(string line)
             {
-                var diagnostic = AppLog.EngineDiagnostic(line);
+                var diagnostic = AppLog.EngineDiagnostic(line, options.UseGpu);
                 if (diagnostic is not null) { lastDiagnostic = diagnostic; log.Write("engine", diagnostic); }
             }
             try
@@ -69,12 +74,12 @@ public sealed class EngineProcessManager(IEnvironmentProbe? probe = null) : IEng
                 child = WindowsChildProcess.Create(info); process = child.Process;
                 child.ResumeInto(job);
                 outputPump = PumpAsync(child.StandardOutput, OnLine); errorPump = PumpAsync(child.StandardError, OnLine);
-                log.Write("start", $"PID={process.Id}; loopback-port={port}; model={EngineLayout.Version}");
+                log.Write("start", $"PID={process.Id}; loopback-port={port}; model={EngineLayout.Version}; device={(options.UseGpu ? "cuda" : "cpu")}");
                 var owned = new OwnedSession(process, port);
                 while (true)
                 {
                     deadline.Token.ThrowIfCancellationRequested();
-                    if (process.HasExited) throw new VoiceLiteException($"引擎启动失败（退出码 {process.ExitCode}）。{lastDiagnostic ?? "请检查模型、运行环境和 NVIDIA 驱动。"}");
+                    if (process.HasExited) throw new VoiceLiteException($"引擎启动失败（退出码 {process.ExitCode}）。{lastDiagnostic ?? (options.UseGpu ? "请检查模型、运行环境和 NVIDIA 驱动。" : "请检查模型、运行环境和可用系统内存。")}");
                     var owners = WindowsPorts.Listeners(port);
                     if (owners.Any(x => x.ProcessId != process.Id || !x.Address.Equals(IPAddress.Loopback)))
                         throw new VoiceLiteException("端口被未知进程占用，未发送任何 API 请求。");
@@ -96,7 +101,7 @@ public sealed class EngineProcessManager(IEnvironmentProbe? probe = null) : IEng
                 }
             }
             catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
-            { await StopCoreAsync(); throw new VoiceLiteException("引擎启动超时或已停止，请检查模型和显卡驱动后重试。"); }
+            { await StopCoreAsync(); throw new VoiceLiteException(options.UseGpu ? "引擎启动超时或已停止，请检查模型和显卡驱动后重试。" : "CPU 引擎启动超时或已停止，请检查模型和系统可用内存后重试。"); }
             catch { await StopCoreAsync(); throw; }
         }
         finally { gate.Release(); }

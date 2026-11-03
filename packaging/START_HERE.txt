@@ -1,13 +1,15 @@
-VoiceLite 本地声音克隆 — 离线候选包
+VoiceLite 0.1.2 本地声音克隆 — 离线候选包
 
 1. 将整个目录解压到有写入权限的位置，双击 VoiceLite.exe。
 2. 选择一段 3–10 秒的 WAV、MP3 或 OGG 录音，填写录音中实际说出的文字。
 3. 输入希望合成的文字，点击“生成语音”；完成后试听或保存 WAV。
 
 程序自动寻找旁边的 engine 目录。不要只移动 VoiceLite.exe。
-首次加载模型可能需要一分钟。取消会停止本程序的引擎；再次生成时会重新加载。
-本版本优先验证 Windows 11 x64 + NVIDIA RTX 4070 Laptop 8GB，需已安装可用 NVIDIA 驱动。
-无 NVIDIA GPU 的 CPU 推理尚未完成验收。
+运行设置提供“自动 / NVIDIA / CPU”，默认自动：包内 PyTorch 能使用 CUDA 时选择 NVIDIA，否则使用 CPU。
+CPU 使用 FP32，加载最多等待5分钟，生成最多等待10分钟；实际耗时取决于硬件和空闲内存。
+首次加载模型需要等待。取消会停止本程序的引擎；再次生成时会重新加载。
+Intel 显卡和 NPU 暂未接入加速；CPU 模式不要求 NVIDIA 驱动。
+各设备实际验证结果见源码仓库 docs/TEST_REPORT.md。
 运行时无需安装 Python、Conda 或 .NET；无须联网获取模型。
 若包中存在 LOCAL_VALIDATION_ONLY.txt，则该包仅供本地验证，许可核查和干净 Windows 离线验收尚未全部完成。
 

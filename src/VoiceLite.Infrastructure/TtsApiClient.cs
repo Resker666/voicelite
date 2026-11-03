@@ -28,11 +28,17 @@ public sealed class TtsApiClient(HttpMessageHandler? handler = null) : ITtsApiCl
                 try
                 {
                     using var error = JsonDocument.Parse(Encoding.UTF8.GetString(errorBuffer, 0, used));
-                    if (error.RootElement.TryGetProperty("Exception", out var detail) && detail.ValueKind == JsonValueKind.String && detail.GetString()!.Contains("out of memory", StringComparison.OrdinalIgnoreCase))
-                        throw new VoiceLiteException("显存不足，请关闭其他占用显卡的程序，缩短文字后重新生成。");
+                    if (error.RootElement.TryGetProperty("Exception", out var detail) && detail.ValueKind == JsonValueKind.String)
+                    {
+                        var diagnostic = detail.GetString()!;
+                        if (diagnostic.Contains("DefaultCPUAllocator", StringComparison.OrdinalIgnoreCase) || diagnostic.Contains("MemoryError", StringComparison.Ordinal))
+                            throw new VoiceLiteException("系统内存不足，请关闭其他占用内存的程序，缩短文字后重新生成。");
+                        if (diagnostic.Contains("out of memory", StringComparison.OrdinalIgnoreCase))
+                            throw new VoiceLiteException(request.UseGpu ? "显存不足，请关闭其他占用显卡的程序，缩短文字后重新生成。" : "系统内存不足，请关闭其他占用内存的程序，缩短文字后重新生成。");
+                    }
                 }
                 catch (JsonException) { }
-                throw new VoiceLiteException($"引擎合成失败（HTTP {(int)response.StatusCode}）。请检查参考录音、模型与显存；详细状态见诊断日志。");
+                throw new VoiceLiteException($"引擎合成失败（HTTP {(int)response.StatusCode}）。请检查参考录音、模型与{(request.UseGpu ? "显存" : "系统内存")}；详细状态见诊断日志。");
             }
             if (response.Content.Headers.ContentType?.MediaType is not ("audio/wav" or "audio/x-wav"))
                 throw new VoiceLiteException("引擎未返回 WAV 音频，结果没有保存。");
@@ -52,7 +58,7 @@ public sealed class TtsApiClient(HttpMessageHandler? handler = null) : ITtsApiCl
             return data;
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
-        { throw new VoiceLiteException("合成超时，请缩短文字或检查显存后重试。"); }
+        { throw new VoiceLiteException(request.UseGpu ? "合成超时，请缩短文字或检查显存后重试。" : "CPU 合成超时，请缩短文字或检查系统可用内存后重试。"); }
         catch (HttpRequestException exception) { throw new VoiceLiteException("无法连接本应用的引擎，可能已异常退出，请重新生成。", exception); }
     }
 }

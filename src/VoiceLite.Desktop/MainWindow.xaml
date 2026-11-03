@@ -16,7 +16,8 @@
           <StackPanel Margin="0,12,0,0">
             <TextBlock Text="完整离线包会自动找到引擎。也可选择兼容的 GPT-SoVITS 整合包目录。" TextWrapping="Wrap" Foreground="#68788D" Margin="0,0,0,8" />
             <DockPanel><Button DockPanel.Dock="Right" Content="选择目录" Click="SelectEngine_Click" /><Button DockPanel.Dock="Right" Content="检查环境" Click="Probe_Click" /><TextBox Text="{Binding EngineRoot, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="True" ToolTip="引擎目录" /></DockPanel>
-            <TextBlock Text="首版验证模型：v2ProPlus；使用 NVIDIA GPU，驱动和显存需要满足要求。" TextWrapping="Wrap" Foreground="#68788D" Margin="0,9,0,0" />
+            <TextBlock Text="计算设备" Style="{StaticResource Label}" Margin="0,12,0,7" />
+            <ComboBox ItemsSource="{Binding Devices}" DisplayMemberPath="Name" SelectedValuePath="Code" SelectedValue="{Binding Device}" Width="180" HorizontalAlignment="Left" AutomationProperties.Name="计算设备" />
             <CheckBox Content="模拟演示（只生成提示音，未运行真实模型）" IsChecked="{Binding IsMock}" Margin="0,12,0,4" />
           </StackPanel>
         </Expander>
