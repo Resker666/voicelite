@@ -1,5 +1,70 @@
 # VoiceLite 验证报告
 
+## 本机真实取消与恢复验收 — 2026-11-03
+
+本轮按用户要求只完成自己电脑上的流程，独立电脑/干净Windows断网验收后置，不作为当前本机迭代的前置条件。设备仍为RTX 4070 Laptop 8GB，产品版本0.1.2；CPU真实合成没有在本轮执行。
+
+新增手动运行的 `tools/VoiceLite.WorkflowProbe`，直接使用产品的MainWindow、ViewModel、GenerationService、EngineProcessManager和TtsApiClient。测试使用独立数据目录、SAPI测试参考录音及其实际文字；没有修改推理代码、模型、原始参考录音或日常设置。
+
+| 最终真实场景 | 结果与实际证据 |
+|---|---|
+| `/tts`请求发出1.5秒后仍未完成时执行取消命令 | 取消收尾约0.050秒；界面恢复、引擎退出、端口释放，无结果或临时参考残留 |
+| 同一窗口取消后重新生成 | 新引擎进程启动，生成并导出5.58秒、32kHz WAV |
+| 请求中主动终止本次测试自己拥有的引擎 | 先验证端口归属、PID、可执行文件并持有原进程句柄；约0.084秒收尾，显示可重试的中文错误，无无效结果 |
+| 同一窗口异常后重新生成 | 新引擎启动，生成并导出5.10秒、32kHz WAV |
+| 请求中关闭实际WPF窗口 | 实际OnClosing路径完成取消、窗口关闭、进程退出和端口释放，约0.076秒；无界面错误和残留结果 |
+
+这5项在最终工具版本上全部通过；取消使用与按钮绑定相同的命令，窗口关闭使用真实WPF事件路径。这里没有把程序调用描述为物理鼠标点击。以上是单次测量，不是取消延迟保证或性能基准。原始参考SHA256保持一致。
+
+实际执行的命令均在仓库根目录执行；下表的`dotnet`指项目内`.tools/dotnet/dotnet.exe`，SDK环境变量设置与下方家里回归记录相同：
+
+| 命令 | 结果 |
+|---|---|
+| `dotnet restore VoiceLite.sln --locked-mode --source .tools/nuget --disable-parallel` | 通过，无依赖下载、无产品锁文件改动 |
+| `dotnet build VoiceLite.sln --no-restore --disable-build-servers -m:1 -v minimal` | 0警告、0错误 |
+| `dotnet test VoiceLite.sln --no-restore --no-build --disable-build-servers -m:1 --logger "trx;LogFileName=workflow-final.trx" --results-directory .artifacts/workflow-20261103/tests -v minimal` | 59/59通过、0跳过，显式指定已有FFmpeg资源 |
+| `dotnet restore tools/VoiceLite.WorkflowProbe/VoiceLite.WorkflowProbe.csproj --source .tools/nuget --disable-parallel`，随后同项目 `restore --locked-mode --source .tools/nuget --disable-parallel` | 新工具初次还原生成自身锁文件，随后锁定还原通过 |
+| `dotnet build tools/VoiceLite.WorkflowProbe/VoiceLite.WorkflowProbe.csproj --no-restore --disable-build-servers -m:1 -v minimal` | 最终0警告、0错误 |
+| 包内Python `-B -m unittest discover -s tools -p "test_*.py" -v` | 显式设置工具DLL和dotnet路径后，27/27通过；含6项临时假引擎CLI边界测试，不加载模型 |
+| `dotnet tools/VoiceLite.WorkflowProbe/bin/Debug/net8.0-windows/VoiceLite.WorkflowProbe.dll "dist/VoiceLite 离线验证 0.1.0/engine" .artifacts/smoke/reference.wav .artifacts/workflow-20261103/real-verified` | 最终5项真实NVIDIA场景通过，工具正常退出 |
+
+完整命令输出、TRX及失败/通过记录在 `.artifacts/workflow-20261103/`，最终真实报告为 `real-verified/workflow-report.json`。工具及复现说明见 [WorkflowProbe](../tools/VoiceLite.WorkflowProbe/README.md)。
+
+开发过程保留的失败记录：最初工具继承Application初始化时发生WPF资源身份错误，尚未启动模型；改为独立测试Application读取产品样式后运行通过。只读审查发现工具输入路径隔离边界，临时假引擎上的末尾斜杠/junction回归先2项失败，扩展路径别名回归也先2项失败；目录句柄规范化和链接祖先检查修复后6项边界回归及全部27项工具测试通过。最终复审无剩余Important问题。失败发生在测试工具或临时假引擎中，没有据此修改产品的推理/取消实现。
+
+## 0.1.2 家里 NVIDIA 回归 — 2026-11-03
+
+代码基线：`675ae97`（Fix migration and add CPU device selection）。执行 `git fetch origin` 后，`HEAD...origin/main` 为 `0 / 0`，开始验证时工作区干净。设备为 Windows 11 x64、RTX 4070 Laptop 8188 MiB、驱动 610.74、约32GB系统内存；这是现有开发机，不是干净 Windows。
+
+本次使用项目内 SDK 8.0.427、本地 NuGet 缓存和已有离线包的 `engine`，没有下载模型或修改上游源码。命令在项目根目录执行，设置 `DOTNET_ROOT=.tools/dotnet`、`DOTNET_CLI_HOME=.tools/cli-home`、`NUGET_PACKAGES=.tools/nuget`；FFmpeg 测试通过 `VOICELITE_TEST_ENGINE_ROOT` 指向现有包内引擎。
+
+| 实际命令 | 结果 |
+|---|---|
+| `.tools/dotnet/dotnet.exe restore VoiceLite.sln --locked-mode --source .tools/nuget --disable-parallel` | 5个项目还原成功，锁文件未改变 |
+| `.tools/dotnet/dotnet.exe build VoiceLite.sln --no-restore --disable-build-servers -m:1 -v minimal` | 0警告、0错误 |
+| `.tools/dotnet/dotnet.exe test VoiceLite.sln --no-restore --no-build --disable-build-servers -m:1 --logger "trx;LogFileName=home-012.trx" --results-directory .artifacts/home-012-20261103/tests -v minimal` | 59/59通过、0跳过，包含真实FFmpeg转换 |
+| 包内 `runtime/python.exe -B -m unittest discover -s tools -p "test_*.py" -v` | 21/21通过 |
+| `.tools/dotnet/dotnet.exe publish src/VoiceLite.Desktop/VoiceLite.Desktop.csproj -c Release -r win-x64 --self-contained true --no-restore --disable-build-servers -m:1 -o .artifacts/home-012-20261103/client` | 0.1.2自包含客户端发布成功 |
+| `tools/validate-offline.ps1 -PackageRoot .artifacts/home-012-20261103/client -EngineRoot "dist/VoiceLite 离线验证 0.1.0/engine" -ReferencePath .artifacts/smoke/reference.wav -DataRoot .artifacts/home-012-20261103/nvidia-ui -Device nvidia -TimeoutSeconds 420` | 真实NVIDIA生成、WAV导出、实际播放完成，进程正常退出 |
+
+最后一项使用新发布的客户端和显式指定的既有包内引擎，清理了 Python/.NET 路径依赖并使用新数据/缓存目录；它验证新版客户端的真实闭环，不代替新完整包在干净 Windows 上的断网验收。参考录音为此前 Windows SAPI 生成的测试素材，参考文字从其 JSON 旁文件读取，没有使用用户角色录音。
+
+结果：`mock=false`、实际设备 `NVIDIA CUDA`、客户端 `0.1.2`；生成 **5.42秒、32kHz WAV**，导出后播放至完成，全流程 **106.077秒**。日志记录模型加载70.862秒、推理14.987秒。约1秒间隔的采样中，进程树 WorkingSet 峰值4268.07 MiB、Python WorkingSet 峰值4116.53 MiB、整板显存峰值4507 MiB；这些不是精确峰值或最低配置要求，整板显存包含其他应用，进程树 WorkingSet 可能重复计算共享页。
+
+原始日志、TRX、截图及音频保存在忽略目录 `.artifacts/home-012-20261103/`。CPU真实合成本次未重新执行，继续保持公司记录中的未验收状态。
+
+### 家里日常运行目录升级
+
+发现现有 `dist/VoiceLite 离线验证 0.1.0/VoiceLite.exe` 仍为0.1.1.0。已核对带回的 `dist/VoiceLite-0.1.2-client-update.zip` 与公司记录SHA256一致（`15d3400cd1ce3e0436abb960ab1ab601097095786f9ad5ef374b385664c143d3`），解压后依次执行：
+
+1. 包内Python运行 `tools/apply-client-update.py dist/VoiceLite-0.1.2-client-update "dist/VoiceLite 离线验证 0.1.0" --check`：13个payload校验通过。
+2. 同一脚本使用 `--backup dist/VoiceLite-0.1.2-home-backup-20261103`：备份并应用成功，EXE文件版本为0.1.2.0。
+3. 包内Python运行 `tools/verify-package.py "dist/VoiceLite 离线验证 0.1.0"`：**40621个文件、11519682736字节**全部SHA校验通过。
+4. 实际运行更新后的EXE，参数 `--smoke-ui --mock --data-dir .artifacts/home-012-20261103/packaged-ui-mock`：0.1.2启动、2秒提示音生成、导出及实际播放通过。此项为Mock；真实NVIDIA结果来自上面独立发布客户端的验证。
+5. 验证结束后，按专属数据目录和本次真实引擎PID核对，残留验证进程为0。
+
+本次没有重建或覆盖8.50GB基包ZIP。日常运行目录仍保留原名称；回滚备份保留在 `dist/VoiceLite-0.1.2-home-backup-20261103`。相关原始证据为本次目录中的 `update-check.log`、`update-apply.log`、`updated-package-verify.log` 和 `packaged-ui-mock/ui-smoke.json`。
+
 ## 0.1.2 公司电脑迁移验证 — 2026-11-03
 
 设备：Windows 11 x64、Intel Core Ultra 5 225H、约32GB内存、Intel Arc 130T，无 NVIDIA。
@@ -113,9 +178,9 @@ $env:VOICELITE_TEST_ENGINE_ROOT = 'E:\ai\voice\GPT-SoVITS-v2pro-20261006'
 
 ## 剩余验收与下一步
 
-1. 在独立 Windows 11 + NVIDIA 测试机，预先装好驱动后断网、使用新用户和无 Python/.NET/模型缓存环境，验证完整包首次启动。当前设备有 SDK 和其它软件，不能声称是干净机器。
+1. 独立 Windows 11 + NVIDIA 测试机的干净用户/断网首次启动验收，按用户2026-11-03的要求后置；当前先完成本机使用，不因缺少另一台设备暂停。此项仍未执行。
 2. 补齐原整合包 commit/来源及每个模型、G2PW、CUDA/cuDNN、加速模块、FFmpeg/ffprobe 与全部 Python 依赖的再分发记录。公开打包门禁保持关闭。
-3. 英文实际推理、CPU、其它 GPU/驱动与最低显存矩阵尚未执行。真实 GPU 推理中途手动点击取消尚未专项执行，取消的状态/进程回收已通过自动化辅助进程测试，真实引擎的正常退出回收已验证。主流程中文真机已通过。
+3. 英文实际推理、CPU、其它 GPU/驱动与最低显存矩阵尚未执行。本机真实NVIDIA请求中取消、取消/异常后重试和窗口关闭回收，已通过顶部新增的工作流验收；不再将这些仅记为辅助进程测试。
 4. Minor：运行时 users.pth 中有未启用的开发路径（实际迁移 sys.path 不依赖它）；超大无 Content-Length 响应、运行中的 FFmpeg 取消尚缺专项测试；OpenAPI 应进一步使用有界流读取。详见代码审查。
 
 最终包文件数、整体校验与 ZIP 大小/哈希另记录于 `OFFLINE_PACKAGE.md`，避免将早期包与最终包混淆。

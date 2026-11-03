@@ -22,7 +22,7 @@ WPF / .NET 8 / MVVM，复用 [GPT-SoVITS](https://github.com/RVC-Boss/GPT-SoVITS
 
 取消会停止并回收本应用的引擎；下一次生成重新加载模型。关闭窗口同样回收托管进程。程序记住上次的参考录音、文字、语言和设备选择。
 
-历史 NVIDIA 验证设备：Windows 11 x64、RTX 4070 Laptop 8GB、驱动 610.74；选择 NVIDIA 模式需要可用驱动和 CUDA。0.1.2 的 CPU 真实合成及耗时、内存结果以 [测试报告](docs/TEST_REPORT.md) 为准，不能将界面模拟或单元测试通过当作 CPU 推理验收。其它 GPU 和最低显存尚未验收。
+0.1.2 NVIDIA 真实生成、导出和播放已在 Windows 11 x64、RTX 4070 Laptop 8GB、驱动 610.74 上回归通过；选择 NVIDIA 模式需要可用驱动和 CUDA。CPU 真实合成仍未验收，具体命令、耗时、内存及范围见 [测试报告](docs/TEST_REPORT.md)。其它 GPU 和最低显存尚未验收。
 
 “模拟演示”只生成提示音，并明确提示未运行真实模型。
 
@@ -54,6 +54,8 @@ $env:NUGET_PACKAGES = "$PWD\.tools\nuget"
 未放入内置引擎时，可在“运行设置”选择已有兼容整合包，或选择模拟演示。当前只接受审计过的本地 API SHA-256 快照，详见 [上游审计](docs/UPSTREAM_AUDIT.md)。生产代码没有开发机引擎路径。
 
 FFmpeg 集成测试需要将 `ffmpeg.exe` 放到 PATH，或设置 `$env:VOICELITE_TEST_ENGINE_ROOT` 为兼容整合包根目录。缺失工具时这些项目会明确跳过，其余测试仍运行；不会下载模型或悄悄把模拟当真实结果。OGG（Vorbis/Opus）自动转为 WAV，用于推理和试听，原始录音保持不变。
+
+本机真实取消、异常恢复和窗口关闭的手动验收使用 [WorkflowProbe](tools/VoiceLite.WorkflowProbe/README.md)。该工具复用产品界面与服务，显式启动后运行真实NVIDIA模型并主动结束自己拥有的测试引擎；普通单元测试不会自动运行它。
 
 Python 工具测试可以使用已有引擎 Python（不安装任何依赖）：
 
