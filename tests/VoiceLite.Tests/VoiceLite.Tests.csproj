@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><TargetFramework>net8.0</TargetFramework><IsPackable>false</IsPackable><IsTestProject>true</IsTestProject></PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5"><PrivateAssets>all</PrivateAssets></PackageReference>
+    <ProjectReference Include="../../src/VoiceLite.Infrastructure/VoiceLite.Infrastructure.csproj" />
+    <ProjectReference Include="../../tools/VoiceLite.TestEngine/VoiceLite.TestEngine.csproj" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+  <Target Name="CopyTestEngine" AfterTargets="Build">
+    <ItemGroup><HelperFiles Include="../../tools/VoiceLite.TestEngine/bin/$(Configuration)/net8.0/*" /></ItemGroup>
+    <Copy SourceFiles="@(HelperFiles)" DestinationFolder="$(OutDir)TestEngine" />
+  </Target>
+</Project>

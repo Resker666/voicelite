@@ -1,0 +1,70 @@
+# Build output and local development tools
+**/bin/
+**/obj/
+.vs/
+.idea/
+.tools/
+.artifacts/
+.superpowers/
+dist/
+**/TestResults/
+__pycache__/
+*.py[cod]
+*.user
+*.suo
+*.log
+
+# Local credentials and signing material
+.env
+.env.*
+!.env.example
+*.pfx
+*.p12
+*.pem
+*.key
+
+# Engine/runtime copies are supplied separately from the source checkout
+/engine/
+/runtime/
+/models/
+**/pretrained_models/
+/GPT_SoVITS/
+/references/
+/outputs/
+/logs/
+
+# User audio and video
+*.wav
+*.mp3
+*.ogg
+*.oga
+*.opus
+*.flac
+*.m4a
+*.aac
+*.wma
+*.aif
+*.aiff
+*.mp4
+*.webm
+
+# Model weights and native binaries
+*.pth
+*.pt
+*.ckpt
+*.safetensors
+*.bin
+*.onnx
+*.h5
+*.hdf5
+*.exe
+*.dll
+*.pdb
+
+# Offline packages and other generated archives
+*.zip
+*.7z
+*.rar
+*.tar
+*.tar.gz
+*.tgz

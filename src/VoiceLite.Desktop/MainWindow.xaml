@@ -1,0 +1,70 @@
+<Window x:Class="VoiceLite.Desktop.MainWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:core="clr-namespace:VoiceLite.Core;assembly=VoiceLite.Core"
+        Title="VoiceLite · 本地声音克隆" Width="1060" Height="850" MinWidth="900" MinHeight="680" Background="#F4F7FB" WindowStartupLocation="CenterScreen">
+  <Grid Margin="28,22">
+    <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+    <Grid Margin="2,0,2,20">
+      <StackPanel><TextBlock Text="VoiceLite" FontSize="30" FontWeight="Bold" /><TextBlock Text="选一段声音，让文字开口。" Foreground="#68788D" Margin="0,4,0,0" /></StackPanel>
+      <Border HorizontalAlignment="Right" VerticalAlignment="Center" Background="#E2EDF8" CornerRadius="18" Padding="16,8"><TextBlock Text="离线 · 本地合成" Foreground="#285B88" FontWeight="SemiBold" /></Border>
+    </Grid>
+    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="0,0,8,0">
+      <StackPanel>
+        <Border CornerRadius="8" Padding="12,9" Margin="0,0,0,14">
+          <Border.Style><Style TargetType="Border"><Setter Property="Background" Value="#E8EFF7" /><Style.Triggers><DataTrigger Binding="{Binding IsMock}" Value="True"><Setter Property="Background" Value="#FFF0C8" /></DataTrigger></Style.Triggers></Style></Border.Style>
+          <TextBlock Text="{Binding ModeDescription}" TextWrapping="Wrap" />
+        </Border>
+        <Expander x:Name="EngineSettings" Header="运行设置" Margin="2,0,0,16" IsEnabled="{Binding CanEdit}">
+          <StackPanel Margin="0,12,0,0">
+            <TextBlock Text="完整离线包会自动找到引擎。也可选择兼容的 GPT-SoVITS 整合包目录。" TextWrapping="Wrap" Foreground="#68788D" Margin="0,0,0,8" />
+            <DockPanel><Button DockPanel.Dock="Right" Content="选择目录" Click="SelectEngine_Click" /><Button DockPanel.Dock="Right" Content="检查环境" Click="Probe_Click" /><TextBox Text="{Binding EngineRoot, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="True" ToolTip="引擎目录" /></DockPanel>
+            <TextBlock Text="首版验证模型：v2ProPlus；使用 NVIDIA GPU，驱动和显存需要满足要求。" TextWrapping="Wrap" Foreground="#68788D" Margin="0,9,0,0" />
+            <CheckBox Content="模拟演示（只生成提示音，未运行真实模型）" IsChecked="{Binding IsMock}" Margin="0,12,0,4" />
+          </StackPanel>
+        </Expander>
+        <Grid>
+          <Grid.ColumnDefinitions><ColumnDefinition Width="0.95*" /><ColumnDefinition Width="18" /><ColumnDefinition Width="1.2*" /></Grid.ColumnDefinitions>
+          <Border Style="{StaticResource Card}" AllowDrop="True" DragOver="Reference_DragOver" Drop="Reference_Drop">
+            <StackPanel IsEnabled="{Binding CanEdit}">
+              <TextBlock Text="01  参考声音" FontSize="19" FontWeight="Bold" />
+              <TextBlock Text="{x:Static core:ReferenceAudioFormats.HelpText}" Foreground="#68788D" Margin="0,8,0,8" TextWrapping="Wrap" />
+              <Button Content="选择参考录音，也可拖入文件" Click="SelectReference_Click" Margin="0,0,0,8" />
+              <TextBox Text="{Binding ReferencePath}" IsReadOnly="True" Height="36" ToolTip="{Binding ReferencePath}" />
+              <Button Content="试听参考录音" Click="PlayReference_Click" HorizontalAlignment="Left" Margin="0,6,0,0" />
+              <TextBlock Text="录音中说了什么" Style="{StaticResource Label}" Margin="0,12,0,7" />
+              <TextBox Text="{Binding PromptText, UpdateSourceTrigger=PropertyChanged}" AcceptsReturn="True" TextWrapping="Wrap" Height="72" VerticalContentAlignment="Top" VerticalScrollBarVisibility="Auto" AutomationProperties.Name="参考文字" />
+              <TextBlock Text="请逐字填写，与录音内容保持一致。" Foreground="#68788D" FontSize="12" Margin="0,6,0,0" TextWrapping="Wrap" />
+              <TextBlock Text="参考语言" Style="{StaticResource Label}" Margin="0,12,0,7" />
+              <ComboBox ItemsSource="{Binding Languages}" DisplayMemberPath="Name" SelectedValuePath="Code" SelectedValue="{Binding PromptLanguage}" AutomationProperties.Name="参考语言" />
+            </StackPanel>
+          </Border>
+          <Border Grid.Column="2" Style="{StaticResource Card}">
+            <StackPanel>
+              <TextBlock Text="02  想让它说什么" FontSize="19" FontWeight="Bold" />
+              <TextBlock Text="输入文字，使用参考声音生成语音。" Foreground="#68788D" Margin="0,8,0,16" />
+              <TextBox Text="{Binding Text, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding CanEdit}" AcceptsReturn="True" TextWrapping="Wrap" Height="210" VerticalContentAlignment="Top" VerticalScrollBarVisibility="Auto" MaxLength="2000" AutomationProperties.Name="合成文字" />
+              <TextBlock Text="合成语言" Style="{StaticResource Label}" />
+              <ComboBox ItemsSource="{Binding Languages}" DisplayMemberPath="Name" SelectedValuePath="Code" SelectedValue="{Binding TextLanguage}" IsEnabled="{Binding CanEdit}" AutomationProperties.Name="合成语言" />
+            </StackPanel>
+          </Border>
+        </Grid>
+      </StackPanel>
+    </ScrollViewer>
+        <Border Grid.Row="2" Style="{StaticResource Card}" Margin="0,14,8,0">
+          <StackPanel>
+            <DockPanel>
+              <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Margin="12,0,0,0">
+                <Button Content="生成语音" Command="{Binding GenerateCommand}" Background="#1769AA" Foreground="White" BorderBrush="#1769AA" FontWeight="Bold" Padding="24,9" />
+                <Button Content="取消" Command="{Binding CancelCommand}" />
+              </StackPanel>
+              <TextBlock Text="{Binding Status}" FontWeight="SemiBold" TextWrapping="Wrap" VerticalAlignment="Center" />
+            </DockPanel>
+            <ProgressBar IsIndeterminate="True" Height="4" Margin="0,12,0,0" Visibility="{Binding IsBusy, Converter={StaticResource BoolVisibility}}" />
+            <TextBlock Text="{Binding Error}" Foreground="#B33939" TextWrapping="Wrap" Margin="0,9,0,0"><TextBlock.Style><Style TargetType="TextBlock"><Style.Triggers><DataTrigger Binding="{Binding Error}" Value=""><Setter Property="Visibility" Value="Collapsed" /></DataTrigger></Style.Triggers></Style></TextBlock.Style></TextBlock>
+            <DockPanel Margin="0,14,0,0">
+              <StackPanel DockPanel.Dock="Right" Orientation="Horizontal"><Button Content="试听结果" Click="PlayResult_Click" IsEnabled="{Binding HasResult}" /><Button Content="保存 WAV" Click="Save_Click" IsEnabled="{Binding HasResult}" /></StackPanel>
+              <TextBlock Text="{Binding ResultDescription}" VerticalAlignment="Center" Foreground="#68788D" TextWrapping="Wrap" Margin="0,0,10,0" />
+            </DockPanel>
+          </StackPanel>
+        </Border>
+    <DockPanel Grid.Row="3" Margin="2,14,2,0"><Button DockPanel.Dock="Right" Content="查看诊断日志" Click="Logs_Click" MinHeight="28" Padding="10,3" FontSize="12" /><TextBlock Text="请使用你拥有或已获授权的参考声音。" Foreground="#79869A" FontSize="12" VerticalAlignment="Center" /></DockPanel>
+  </Grid>
+</Window>

@@ -1,0 +1,38 @@
+{
+  "schema": 1,
+  "id": "gpt-sovits-v2proplus-local-20261006",
+  "api_sha256": "44E067698A61014CDFF3BDA1B2FBFF97252440E5879C429D38119FB0010D2B42",
+  "upstream_url": "https://github.com/RVC-Boss/GPT-SoVITS",
+  "upstream_commit": null,
+  "source_identity": "Audited local snapshot; original commit unavailable; pin by per-file SHA-256",
+  "model": "v2ProPlus",
+  "g2pw": true,
+  "public_redistribution_cleared": false,
+  "required_files": [
+    "api_v2.py", "tools/portable_runtime.py", "runtime/python.exe", "runtime/ffmpeg.exe", "runtime/ffprobe.exe",
+    "GPT_SoVITS/pretrained_models/s1v3.ckpt", "GPT_SoVITS/pretrained_models/v2Pro/s2Gv2ProPlus.pth",
+    "GPT_SoVITS/pretrained_models/sv/pretrained_eres2netv2w24s4ep4.ckpt",
+    "GPT_SoVITS/pretrained_models/chinese-roberta-wwm-ext-large/config.json",
+    "GPT_SoVITS/pretrained_models/chinese-roberta-wwm-ext-large/tokenizer.json",
+    "GPT_SoVITS/pretrained_models/chinese-roberta-wwm-ext-large/pytorch_model.bin",
+    "GPT_SoVITS/pretrained_models/chinese-hubert-base/config.json",
+    "GPT_SoVITS/pretrained_models/chinese-hubert-base/preprocessor_config.json",
+    "GPT_SoVITS/pretrained_models/chinese-hubert-base/pytorch_model.bin",
+    "GPT_SoVITS/pretrained_models/fast_langdetect/lid.176.bin",
+    "GPT_SoVITS/text/G2PWModel/g2pW.onnx",
+    "GPT_SoVITS/text/G2PWModel/config.py",
+    "GPT_SoVITS/text/G2PWModel/POLYPHONIC_CHARS.txt",
+    "GPT_SoVITS/text/G2PWModel/MONOPHONIC_CHARS.txt",
+    "GPT_SoVITS/text/G2PWModel/char_bopomofo_dict.json",
+    "GPT_SoVITS/text/G2PWModel/bopomofo_to_pinyin_wo_tune_dict.json"
+  ],
+  "model_paths": [
+    "GPT_SoVITS/pretrained_models/s1v3.ckpt",
+    "GPT_SoVITS/pretrained_models/v2Pro/s2Gv2ProPlus.pth",
+    "GPT_SoVITS/pretrained_models/sv/pretrained_eres2netv2w24s4ep4.ckpt",
+    "GPT_SoVITS/pretrained_models/chinese-roberta-wwm-ext-large",
+    "GPT_SoVITS/pretrained_models/chinese-hubert-base",
+    "GPT_SoVITS/text/G2PWModel",
+    "GPT_SoVITS/pretrained_models/fast_langdetect/lid.176.bin"
+  ]
+}
