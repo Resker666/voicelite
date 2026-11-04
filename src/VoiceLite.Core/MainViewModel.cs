@@ -3,7 +3,7 @@ using CommunityToolkit.Mvvm.Input;
 using System.Collections.ObjectModel;
 namespace VoiceLite.Core;
 
-public sealed class MainViewModel : ObservableObject
+public sealed partial class MainViewModel : ObservableObject
 {
     private readonly IGenerationService service;
     private string engineRoot = "", referencePath = "", promptText = "", text = "", promptLanguage = "zh", textLanguage = "zh";
@@ -27,7 +27,7 @@ public sealed class MainViewModel : ObservableObject
     public IReadOnlyList<DeviceChoice> Devices { get; } = [new("自动", ComputeDevice.Auto), new("NVIDIA", ComputeDevice.Nvidia), new("CPU", ComputeDevice.Cpu)];
     public bool IsBusy { get => isBusy; private set {
         if (!SetProperty(ref isBusy, value)) return;
-        OnPropertyChanged(nameof(CanEdit)); OnPropertyChanged(nameof(HasResult));
+        OnPropertyChanged(nameof(CanEdit)); OnPropertyChanged(nameof(CanEditReferences)); OnPropertyChanged(nameof(HasResult));
         GenerateCommand.NotifyCanExecuteChanged(); CancelCommand.NotifyCanExecuteChanged();
     } }
     public bool CanEdit => !IsBusy;
@@ -39,16 +39,17 @@ public sealed class MainViewModel : ObservableObject
     public IReadOnlyList<LanguageChoice> Languages { get; } = [new("中文 / 中英混合", "zh"), new("英文", "en")];
     public IAsyncRelayCommand GenerateCommand { get; }
     public IRelayCommand CancelCommand { get; }
-    public MainViewModel(IGenerationService service)
+    public MainViewModel(IGenerationService service, IRoleLibrary? roleLibrary = null)
     {
         this.service = service;
+        this.roleLibrary = roleLibrary;
         GenerateCommand = new AsyncRelayCommand(GenerateAsync, () => !IsBusy);
         CancelCommand = new RelayCommand(CancelCurrentOperation, () => IsBusy);
         AuxiliaryReferences.CollectionChanged += (_, _) => OnPropertyChanged(nameof(AuxiliarySummary));
     }
     public void AddAuxiliaryReferences(IEnumerable<string> paths)
     {
-        if (IsBusy) return;
+        if (!CanEditReferences) return;
         Error = "";
         foreach (var path in paths)
         {
@@ -88,7 +89,7 @@ public sealed class MainViewModel : ObservableObject
         try
         {
             var input = new GenerationInput(EngineRoot, ReferencePath, PromptText, PromptLanguage, Text.Trim(), TextLanguage, IsMock, Device,
-                AuxiliaryReferences.Select(x => x.Path).ToArray());
+                AuxiliaryReferences.Select(x => x.Path).ToArray(), SelectedRole.IsCustom ? null : SelectedRole.Id);
             var progress = new Progress<string>(message => { if (IsBusy) Status = message; });
             var result = await service.GenerateAsync(input, progress, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();

@@ -24,13 +24,22 @@ public sealed class GenerationService(string dataRoot, IEngineManager manager, I
             }
             else
             {
+                ModelWeights? weights = null;
+                if (!string.IsNullOrEmpty(input.RoleId))
+                {
+                    progress.Report("正在校验角色模型与参考录音…");
+                    var role = await new RoleLibrary(dataRoot).ValidateAsync(input.RoleId, cancellationToken);
+                    weights = role.Weights;
+                    input = input with { ReferencePath = role.ReferencePath, PromptText = role.PromptText,
+                        PromptLanguage = role.Language, AuxiliaryReferencePaths = role.AuxiliaryReferencePaths };
+                }
                 if (string.IsNullOrWhiteSpace(input.PromptText)) throw new VoiceLiteException("请填写参考录音的实际文字。");
                 var requested = input.AuxiliaryReferencePaths ?? [];
                 if (requested.Count > 3 || requested.Any(string.IsNullOrWhiteSpace)
                     || requested.Select(Path.GetFullPath).Append(Path.GetFullPath(input.ReferencePath)).Distinct(StringComparer.OrdinalIgnoreCase).Count() != requested.Count + 1)
                     throw new VoiceLiteException("最多选择3条辅助录音，且不要与主参考或其他录音重复。");
                 progress.Report("正在检查计算设备…");
-                var options = await (deviceResolver ?? new EngineDeviceResolver()).ResolveAsync(input.EngineRoot, dataRoot, input.Device, cancellationToken);
+                var options = (await (deviceResolver ?? new EngineDeviceResolver()).ResolveAsync(input.EngineRoot, dataRoot, input.Device, cancellationToken)) with { Weights = weights };
                 deviceName = options.UseGpu ? "NVIDIA CUDA" : "CPU（FP32）";
                 progress.Report($"使用 {deviceName}，正在检查并转换参考录音…");
                 reference = await (importer ?? new AudioImportService()).ImportAsync(input.ReferencePath,
@@ -60,7 +69,7 @@ public sealed class GenerationService(string dataRoot, IEngineManager manager, I
                 cancellationToken.ThrowIfCancellationRequested(); File.Move(temporary, path);
             }
             finally { if (File.Exists(temporary)) File.Delete(temporary); }
-            new AppLog(dataRoot).Write("generation", $"{(input.IsMock ? "mock" : "real")}; device={deviceName}; aux_refs={auxiliary.Count}; load_seconds={loadSeconds:F3}; inference_seconds={inferenceSeconds:F3}; seconds={wave.DurationSeconds:F2}; rate={wave.SampleRate}");
+            new AppLog(dataRoot).Write("generation", $"{(input.IsMock ? "mock" : "real")}; device={deviceName}; role={input.RoleId ?? "custom"}; aux_refs={auxiliary.Count}; load_seconds={loadSeconds:F3}; inference_seconds={inferenceSeconds:F3}; seconds={wave.DurationSeconds:F2}; rate={wave.SampleRate}");
             return new(path, wave, input.IsMock, deviceName);
         }
         catch (Exception exception)

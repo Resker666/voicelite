@@ -58,7 +58,7 @@ def main():
     shutil.copy2(Path(__file__).with_name("apply-client-update.py"), destination / "apply-client-update.py")
     (destination / "README-UPDATE.txt").write_text(
         f"VoiceLite {version} cumulative client update\n\n"
-        "Includes OGG import/preview, CPU/NVIDIA selection and optional auxiliary reference recordings. Apply directly to the original full offline package.\n"
+        "Includes role package import/selection, OGG import/preview, CPU/NVIDIA selection and auxiliary reference recordings. Apply directly to the original full offline package.\n"
         "Close VoiceLite and its engine before updating. Use the Python inside your full package:\n"
         '  "<package>\\engine\\runtime\\python.exe" -B apply-client-update.py "<update>" "<package>" --check\n'
         '  "<package>\\engine\\runtime\\python.exe" -B apply-client-update.py "<update>" "<package>" --backup "<new-backup-folder>"\n'

@@ -6,7 +6,7 @@
       <StackPanel><TextBlock Text="VoiceLite" FontSize="30" FontWeight="Bold" /><TextBlock Text="选一段声音，让文字开口。" Foreground="#68788D" Margin="0,4,0,0" /></StackPanel>
       <Border HorizontalAlignment="Right" VerticalAlignment="Center" Background="#E2EDF8" CornerRadius="18" Padding="16,8"><TextBlock Text="离线 · 本地合成" Foreground="#285B88" FontWeight="SemiBold" /></Border>
     </Grid>
-    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="0,0,8,0">
+    <ScrollViewer x:Name="ContentScroll" Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="0,0,8,0">
       <StackPanel>
         <Border CornerRadius="8" Padding="12,9" Margin="0,0,0,14">
           <Border.Style><Style TargetType="Border"><Setter Property="Background" Value="#E8EFF7" /><Style.Triggers><DataTrigger Binding="{Binding IsMock}" Value="True"><Setter Property="Background" Value="#FFF0C8" /></DataTrigger></Style.Triggers></Style></Border.Style>
@@ -21,28 +21,39 @@
             <CheckBox Content="模拟演示（只生成提示音，未运行真实模型）" IsChecked="{Binding IsMock}" Margin="0,12,0,4" />
           </StackPanel>
         </Expander>
+        <Border Style="{StaticResource Card}" Margin="0,0,0,14">
+          <StackPanel IsEnabled="{Binding CanEdit}">
+            <TextBlock Text="声音角色" FontSize="19" FontWeight="Bold" Margin="0,0,0,10" />
+            <DockPanel>
+              <Button DockPanel.Dock="Right" Content="导入角色包" Click="ImportRole_Click" Margin="10,0,0,0" />
+              <ComboBox x:Name="RoleList" ItemsSource="{Binding Roles}" DisplayMemberPath="DisplayName" SelectedItem="{Binding SelectedRole}" SelectionChanged="Role_SelectionChanged" AutomationProperties.Name="声音角色" />
+            </DockPanel>
+            <TextBlock Text="{Binding RoleDescription}" Foreground="#68788D" Margin="0,8,0,0" TextWrapping="Wrap" />
+            <TextBlock Text="仅导入来源可信的角色包，模型会在本机加载。" Foreground="#68788D" FontSize="12" Margin="0,4,0,0" TextWrapping="Wrap" />
+          </StackPanel>
+        </Border>
         <Grid>
           <Grid.ColumnDefinitions><ColumnDefinition Width="0.95*" /><ColumnDefinition Width="18" /><ColumnDefinition Width="1.2*" /></Grid.ColumnDefinitions>
           <Border Style="{StaticResource Card}" AllowDrop="True" DragOver="Reference_DragOver" Drop="Reference_Drop">
             <StackPanel IsEnabled="{Binding CanEdit}">
               <TextBlock Text="01  参考声音" FontSize="19" FontWeight="Bold" />
               <TextBlock Text="{x:Static core:ReferenceAudioFormats.HelpText}" Foreground="#68788D" Margin="0,8,0,8" TextWrapping="Wrap" />
-              <Button Content="选择参考录音，也可拖入文件" Click="SelectReference_Click" Margin="0,0,0,8" />
+              <Button Content="选择参考录音，也可拖入文件" Click="SelectReference_Click" IsEnabled="{Binding CanEditReferences}" Margin="0,0,0,8" />
               <TextBox Text="{Binding ReferencePath}" IsReadOnly="True" Height="36" ToolTip="{Binding ReferencePath}" />
               <Button Content="试听参考录音" Click="PlayReference_Click" HorizontalAlignment="Left" Margin="0,6,0,0" />
               <TextBlock Text="录音中说了什么" Style="{StaticResource Label}" Margin="0,12,0,7" />
-              <TextBox Text="{Binding PromptText, UpdateSourceTrigger=PropertyChanged}" AcceptsReturn="True" TextWrapping="Wrap" Height="72" VerticalContentAlignment="Top" VerticalScrollBarVisibility="Auto" AutomationProperties.Name="参考文字" />
+              <TextBox Text="{Binding PromptText, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="{Binding IsRoleSelected}" AcceptsReturn="True" TextWrapping="Wrap" Height="72" VerticalContentAlignment="Top" VerticalScrollBarVisibility="Auto" AutomationProperties.Name="参考文字" />
               <TextBlock Text="请逐字填写，与录音内容保持一致。" Foreground="#68788D" FontSize="12" Margin="0,6,0,0" TextWrapping="Wrap" />
               <TextBlock Text="参考语言" Style="{StaticResource Label}" Margin="0,12,0,7" />
-              <ComboBox ItemsSource="{Binding Languages}" DisplayMemberPath="Name" SelectedValuePath="Code" SelectedValue="{Binding PromptLanguage}" AutomationProperties.Name="参考语言" />
+              <ComboBox ItemsSource="{Binding Languages}" DisplayMemberPath="Name" SelectedValuePath="Code" SelectedValue="{Binding PromptLanguage}" IsEnabled="{Binding CanEditReferences}" AutomationProperties.Name="参考语言" />
               <Expander x:Name="AuxiliarySettings" Header="{Binding AuxiliarySummary}" Margin="0,14,0,0">
                 <StackPanel Margin="0,8,0,0">
                   <TextBlock Text="可补充同一声音的1–3条录音，每条3–10秒。只需填写主参考的文字；更换主参考会清空辅助录音。" Foreground="#68788D" FontSize="12" TextWrapping="Wrap" />
                   <ListBox x:Name="AuxiliaryList" ItemsSource="{Binding AuxiliaryReferences}" DisplayMemberPath="Name" Height="70" Margin="0,8,0,8" AutomationProperties.Name="辅助参考录音" />
                   <WrapPanel>
-                    <Button Content="添加录音" Click="AddAuxiliary_Click" Padding="10,6" Margin="0,0,4,4" />
+                    <Button Content="添加录音" Click="AddAuxiliary_Click" IsEnabled="{Binding CanEditReferences}" Padding="10,6" Margin="0,0,4,4" />
                     <Button Content="试听选中" Click="PlayAuxiliary_Click" Padding="10,6" Margin="0,0,4,4" />
-                    <Button Content="移除选中" Click="RemoveAuxiliary_Click" Padding="10,6" Margin="0,0,0,4" />
+                    <Button Content="移除选中" Click="RemoveAuxiliary_Click" IsEnabled="{Binding CanEditReferences}" Padding="10,6" Margin="0,0,0,4" />
                   </WrapPanel>
                 </StackPanel>
               </Expander>

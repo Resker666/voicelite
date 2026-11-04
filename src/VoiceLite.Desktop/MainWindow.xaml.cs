@@ -34,6 +34,16 @@ public partial class MainWindow : Window
         var dialog = new OpenFolderDialog { Title = "选择 GPT-SoVITS 引擎目录" };
         if (dialog.ShowDialog(this) == true) vm.EngineRoot = dialog.FolderName;
     }
+    private async void ImportRole_Click(object sender, RoutedEventArgs e)
+    {
+        if (!vm.CanEdit || cleanup is not null) return;
+        var dialog = new OpenFileDialog { Title = "导入声音角色包", Filter = "VoiceLite 角色包 (*.zip)|*.zip" };
+        if (dialog.ShowDialog(this) != true) return;
+        StopPlayback();
+        await vm.ImportRoleAsync(dialog.FileName);
+        AuxiliarySettings.IsExpanded = vm.AuxiliaryReferences.Count > 0;
+    }
+    private void Role_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e) => StopPlayback();
     private void SelectReference_Click(object sender, RoutedEventArgs e)
     {
         var dialog = new OpenFileDialog { Title = "选择 3–10 秒参考录音", Filter = ReferenceAudioFormats.FileDialogFilter };
@@ -49,10 +59,10 @@ public partial class MainWindow : Window
     { if (AuxiliaryList.SelectedItem is AudioReferenceChoice item) await PlayWithMessageAsync(item.Path); }
     private void RemoveAuxiliary_Click(object sender, RoutedEventArgs e)
     { if (AuxiliaryList.SelectedItem is AudioReferenceChoice item) vm.AuxiliaryReferences.Remove(item); }
-    private void Reference_DragOver(object sender, DragEventArgs e) { e.Effects = vm.CanEdit && e.Data.GetDataPresent(DataFormats.FileDrop) ? DragDropEffects.Copy : DragDropEffects.None; e.Handled = true; }
+    private void Reference_DragOver(object sender, DragEventArgs e) { e.Effects = vm.CanEditReferences && e.Data.GetDataPresent(DataFormats.FileDrop) ? DragDropEffects.Copy : DragDropEffects.None; e.Handled = true; }
     private void Reference_Drop(object sender, DragEventArgs e)
     {
-        if (vm.CanEdit && e.Data.GetData(DataFormats.FileDrop) is string[] { Length: 1 } files)
+        if (vm.CanEditReferences && e.Data.GetData(DataFormats.FileDrop) is string[] { Length: 1 } files)
         {
             if (ReferenceAudioFormats.IsSupported(files[0]) && File.Exists(files[0])) SetReference(files[0]);
             else vm.ReportError(Directory.Exists(files[0]) ? "请打开文件夹，选择其中一条 3–10 秒的参考录音。" : ReferenceAudioFormats.UnsupportedMessage);
@@ -125,6 +135,7 @@ public partial class MainWindow : Window
         if (!vm.HasResult || vm.Error.Length > 0) throw new VoiceLiteException(vm.Error.Length > 0 ? vm.Error : "No UI result");
         await Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.ContextIdle);
         if (vm.AuxiliaryReferences.Count > 0) { AuxiliarySettings.IsExpanded = true; AuxiliarySettings.BringIntoView(); }
+        if (!vm.SelectedRole.IsCustom) ContentScroll.ScrollToTop();
         UpdateLayout();
         var screenshot = new RenderTargetBitmap((int)ActualWidth, (int)ActualHeight, 96, 96, PixelFormats.Pbgra32);
         screenshot.Render(this);
@@ -136,7 +147,8 @@ public partial class MainWindow : Window
         var info = WaveInfo.Inspect(await File.ReadAllBytesAsync(exported));
         await File.WriteAllTextAsync(Path.Combine(dataRoot, "ui-smoke.json"), JsonSerializer.Serialize(new {
             passed = true, mock = vm.IsMock, actual_device = vm.ActualDevice, requested_device = vm.Device.ToString(), client_version = typeof(App).Assembly.GetName().Version?.ToString(3), status = vm.Status, seconds = info.DurationSeconds,
-            sample_rate = info.SampleRate, auxiliary_reference_count = vm.AuxiliaryReferences.Count, playback_completed = true, playback_checked_seconds = playbackSeconds,
+            sample_rate = info.SampleRate, auxiliary_reference_count = vm.AuxiliaryReferences.Count, selected_role_id = vm.SelectedRole.Id, selected_role_name = vm.SelectedRole.Name,
+            role_weights = vm.SelectedRole.Weights, playback_completed = true, playback_checked_seconds = playbackSeconds,
             playback_source_format = Path.GetExtension(playbackCheck ?? exported).ToLowerInvariant(), elapsed_seconds = clock.Elapsed.TotalSeconds
         }, new JsonSerializerOptions { WriteIndented = true }));
     }
@@ -153,10 +165,12 @@ public partial class MainWindow : Window
         {
             try { await playbackQueue.CloseAsync(); } catch (OperationCanceledException) { } catch (Exception exception) { new AppLog(dataRoot).Write("preview-close", exception.GetType().Name); }
             await environmentCheck;
+            await vm.RoleOperation;
             await manager.StopAsync();
             if (vm.GenerateCommand.ExecutionTask is { } pending) await pending;
-            await store.SaveAsync(new(vm.EngineRoot, vm.ReferencePath, vm.PromptText, vm.PromptLanguage, vm.TextLanguage, vm.Device) {
-                AuxiliaryReferencePaths = vm.AuxiliaryReferences.Select(x => x.Path).ToArray()
+            var custom = vm.CustomReferenceDefaults;
+            await store.SaveAsync(new(vm.EngineRoot, custom.ReferencePath, custom.PromptText, custom.PromptLanguage, custom.TextLanguage, vm.Device) {
+                AuxiliaryReferencePaths = custom.AuxiliaryReferencePaths, SelectedRoleId = vm.SelectedRole.Id
             });
         }
         catch (Exception exception) { new AppLog(dataRoot).Write("close", exception.GetType().Name); }

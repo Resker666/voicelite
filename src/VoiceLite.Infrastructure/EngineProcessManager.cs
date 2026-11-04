@@ -75,6 +75,7 @@ public sealed class EngineProcessManager(IEnvironmentProbe? probe = null) : IEng
                 child.ResumeInto(job);
                 outputPump = PumpAsync(child.StandardOutput, OnLine); errorPump = PumpAsync(child.StandardError, OnLine);
                 log.Write("start", $"PID={process.Id}; loopback-port={port}; model={EngineLayout.Version}; device={(options.UseGpu ? "cuda" : "cpu")}");
+                log.Write("weights", $"gpt={options.Weights?.GptPath ?? "stock"}; sovits={options.Weights?.SovitsPath ?? "stock"}");
                 var owned = new OwnedSession(process, port);
                 while (true)
                 {

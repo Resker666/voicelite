@@ -84,3 +84,24 @@ Plan: docs/superpowers/plans/2026-11-02-voicelite.md
 - 最终更新包dist/VoiceLite-0.1.3-client-update.zip：2193475字节，SHA256=04c5abb6c04339e70da36da379f8f75281819998da766a33331610327610e224，14个payload。
 - 日常目录已备份并应用到0.1.3.0；备份dist/VoiceLite-0.1.3-home-backup-20261103。pipeline74059 exit0，40621文件/11519703265字节完整SHA通过。安装后Mock恢复两条辅助/播放通过；已打开真实日常GUI128596并预选D组合，主参考永久副本在%LOCALAPPDATA%/VoiceLite/voice-presets，未自动生成。
 - 最终代码72项C#、30项Python测试通过，坏CLI与累积补丁新增回归均经历RED→GREEN；只读审查无剩余Important。真实GUI证据及安装记录在.artifacts/voicelite-013-20261103。仍未提交/推送，本机范围之外验收后置。
+
+## 真实角色微调与续训试验 — 2026-11-04
+
+- 用户授权先做小规模真实试验，再依据 D/E/F 听感决定 GUI 接入。基线 beca7fb，客户端保持 0.1.3，本轮没有产品功能改动或自动提交/推送。
+- 39 段原录音中留出 4 段，29 条离线 Paraformer 草稿筛掉 11 条明显可疑/唱段，最终 18 段共 115.936 秒。文字尚未逐字人工审核。上游 loader 重复到 90 条不代表 90 段独立素材。
+- 复制 222 个上游源码/配置，既有模型和运行时通过 junction 复用；目录链接不等同只读权限。使用已有离线依赖，未安装/下载模型；原 39 段录音、4 个底模和 222 个源码/配置的已记录 SHA 最终全部不变。
+- 原四项预处理匹配 18/18；真实 SoVITS 训练 8 轮、GPT 训练 15 轮，随后从完整检查点恢复到 9/16 轮，优化器状态保留。GPT 实际 global_step 165→176（上游手动优化器步数）。证明了续训能力，尚未测试追加新素材的收益。
+- 私有 launcher 适配单 GPU Lightning/sampler 与自建 checkpoint 的 WindowsPath；原算法及上游文件未改。准备阶段型号配置、检查点目录、DDP 单卡和恢复类型等失败均保留日志，修正后完成，不隐藏初次失败。
+- D 原底模、E 仅 SoVITS 微调、F 两组微调，固定三参考/文案/seed/temperature，分别预热后生成三句和一次重复，共 12 段真实 WAV；解码、PCM16、非静音及各组重复 SHA 一致通过。音量接近的聊天试听副本另存，不改原 WAV。用户随后反馈“E更像”，E 成为本轮首选；这是该次试听的主观选择，其他文案发音/怪音尚未验收。
+- 导出私有实验角色包 dist/VoiceLite-hutao-experimental-20261104.zip，304633151 字节；SHA256=ff4cb93863cb724785d28f84f81109b14c5696644ac3ac3604b06e6df11503fe。含 F 候选两组推理权重、三参考、说明和实验 manifest，不含完整训练检查点。
+- 听选后另行导出 E 首选包 dist/VoiceLite-hutao-E-experimental-20261104.zip，304630055 字节，SHA256=f03c25f373daf093e89488390c17d2e1b78c9c26cc67f805f3f2199140c481ae。原 GPT + 微调 SoVITS，五个 payload 与试听条件 SHA 一致、ZIP CRC 通过；原 F 包保留未改。listener-preference.json、selected-e-export.json 保存反馈和验证记录，未重新训练。
+- 当前 GUI 不能导入角色包，未发布通用训练功能；脚本、音频和权重在忽略目录 .artifacts/character-training-20261104 与 dist。详见 CHARACTER_TRAINING、TEST_REPORT。上一轮 72 项 C# / 30 项 Python 是 11-03 基线，本轮不冒充重新执行。
+
+## 0.1.4 角色包 GUI — 2026-11-04
+
+- 用户在选 E 后明确要求执行下一步。新增 Core角色契约、Infrastructure角色库及启动权重选项、MVVM角色选择/导入、WPF入口和设置恢复。角色参考自动填充且可试听，自定义参考保留并可切回；切换保留合成文字、清除旧结果选择。
+- 仅支持已锁定v2ProPlus实验ZIP，检查清单/大小/SHA/相对路径/别名/链接，私有staging原子安装、取消清理，生成前重验。两组权重通过已有启动配置选择，选项变化回收旧Job再启动，不增加未核实API。
+- 功能先RED再GREEN。独立复审发现并复现非整数bytes的异常逃逸，TryGetInt64修复后无剩余Important。最终构建0警告0错误，C#105/105、Python30/30均0跳过。
+- E包新目录真实GUI导入/生成/导出/播放通过，4.90秒32kHz；最终客户端重启恢复角色4.46秒、切自定义底模5.06秒、返回角色Mock2秒及5组坏CLI拒绝均通过。证据在.artifacts/roles-014-20261104。
+- 累积客户端更新dist/VoiceLite-0.1.4-client-update.zip，2213533字节，SHA256=5179589bb1e901ae66e425c8fd6e4170d99291c5b547a5aefba7a55501c03585，14个payload；日常安装已备份并应用，备份dist/VoiceLite-0.1.4-home-backup-20261104。私人E包/音频/完整检查点仍在Git忽略目录，未自动提交/推送。
+- 日常完整包40621文件/11519749847字节SHA通过，EXE0.1.4.0。通过computer-use实际点击导入E角色到用户数据目录，关闭/重开验证自动恢复，保留原自定义参考与两辅助；现在窗口已打开、E已选中，未自动生成。独立电脑断网和CPU真实验收仍后置。

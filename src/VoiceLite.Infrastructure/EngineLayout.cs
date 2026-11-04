@@ -23,8 +23,8 @@ public static class EngineLayout
     internal static Dictionary<string, object> Config(VoiceLite.Core.EngineOptions options) => new() {
         ["custom"] = new Dictionary<string, object> {
             ["version"] = Version, ["device"] = options.UseGpu ? "cuda" : "cpu", ["is_half"] = options.UseGpu,
-            ["t2s_weights_path"] = Path.Combine(options.EngineRoot, "GPT_SoVITS/pretrained_models/s1v3.ckpt"),
-            ["vits_weights_path"] = Path.Combine(options.EngineRoot, "GPT_SoVITS/pretrained_models/v2Pro/s2Gv2ProPlus.pth"),
+            ["t2s_weights_path"] = options.Weights?.GptPath ?? Path.Combine(options.EngineRoot, "GPT_SoVITS/pretrained_models/s1v3.ckpt"),
+            ["vits_weights_path"] = options.Weights?.SovitsPath ?? Path.Combine(options.EngineRoot, "GPT_SoVITS/pretrained_models/v2Pro/s2Gv2ProPlus.pth"),
             ["bert_base_path"] = Path.Combine(options.EngineRoot, "GPT_SoVITS/pretrained_models/chinese-roberta-wwm-ext-large"),
             ["cnhuhbert_base_path"] = Path.Combine(options.EngineRoot, "GPT_SoVITS/pretrained_models/chinese-hubert-base")
         }

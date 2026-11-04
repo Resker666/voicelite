@@ -4,6 +4,7 @@ namespace VoiceLite.Infrastructure;
 public sealed record UserSettings(string EngineRoot = "", string ReferencePath = "", string PromptText = "", string PromptLanguage = "zh", string TextLanguage = "zh", ComputeDevice Device = ComputeDevice.Auto)
 {
     public IReadOnlyList<string> AuxiliaryReferencePaths { get; init; } = [];
+    public string SelectedRoleId { get; init; } = "";
 }
 public sealed class SettingsStore(string dataRoot)
 {
@@ -17,6 +18,7 @@ public sealed class SettingsStore(string dataRoot)
             var settings = JsonSerializer.Deserialize<UserSettings>(await File.ReadAllTextAsync(FilePath)) ?? new();
             return settings with {
                 Device = Enum.IsDefined(settings.Device) ? settings.Device : ComputeDevice.Auto,
+                SelectedRoleId = settings.SelectedRoleId ?? "",
                 AuxiliaryReferencePaths = (settings.AuxiliaryReferencePaths ?? []).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct(StringComparer.OrdinalIgnoreCase).Take(3).ToArray()
             };
         }

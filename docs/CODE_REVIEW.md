@@ -1,5 +1,13 @@
 # Independent code review — 2026-11-02
 
+## 0.1.4 角色包导入复审 — 2026-11-04
+
+依据 requesting-code-review / executing-plans，由独立只读 reviewer 审查本轮未提交的 Core/Infrastructure/Desktop/角色测试及计划。没有启动模型或编辑代码；真实 GUI 由主流程另行验收。
+
+发现一项 P2：角色清单 `files[*].bytes` 是小数或超出 Int64 时，`GetInt64` 的 FormatException 逃逸 ListAsync，导致即便未选择该角色也可能无法启动。已先复现新包与已安装清单两种失败，再改为 TryGetInt64 并抛可隔离的 VoiceLiteException；新增回归与全 C#105/105 通过。复核结论：无剩余 Critical / Important。
+
+ZIP路径/链接检查、解压中取消清理、两组权重往返切换、关闭等待导入、自定义设置恢复均在复审范围。模型来源信任与声音质量仍按角色使用说明及人工听选处理，静态审查不代表模型质量验收。
+
 依据 requesting-code-review 技能，独立 reviewer 对 src/tests/tools/packaging 和设计进行只读审查，没有修改代码、重跑模型或将静态检查当作验收。初始结论 With fixes；没有 Critical，3 Important。
 
 | Important | 实际修复 | 证据 |

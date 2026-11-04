@@ -1,5 +1,71 @@
 # VoiceLite 验证报告
 
+## 0.1.4 角色包 GUI — 2026-11-04
+
+用户选 E（原 GPT + 微调 9 轮 SoVITS）后授权接入“导入角色包→选择角色→生成”。实现本机角色库、ZIP 兼容/清单/大小/SHA/路径/链接检查、生成前重验、设置恢复及自定义输入保留。引擎启动配置同时指定两组权重；角色变化通过现有 manager 结束旧 Job 并启动新进程，HTTP 继续只连接已确认拥有的 127.0.0.1。没有新增训练 GUI 或改动上游算法。
+
+下表 SDK 使用工作区 `.tools/dotnet/dotnet.exe`8.0.427，配置项目内 CLI/NuGet 目录；`$p` 是 `.artifacts/roles-014-20261104` 的完整路径，`$py` 是已有整合包 `E:\ai\voice\GPT-SoVITS-v2pro-20261006\runtime\python.exe`。所有测试与产物均在本机执行，没有下载依赖。
+
+| 实际执行命令/检查 | 结果 |
+|---|---|
+| `test tests/VoiceLite.Tests/VoiceLite.Tests.csproj --no-restore --disable-build-servers -m:1 --filter <RolePackage/Generation/ViewModel 对应测试>` | 首批缺失功能真实 RED 后实现 GREEN，TRX 在 `$p/tests`。新增 ZIP、设置、权重切换等最终共 33 项回归 |
+| `restore VoiceLite.sln --force-evaluate --source .tools/nuget --disable-parallel`；`restore VoiceLite.sln --locked-mode --source .tools/nuget --disable-parallel` | 版本改为 0.1.4，只有项目引用锁版本变动；锁定还原通过 |
+| `build VoiceLite.sln --no-restore --disable-build-servers -m:1 -v minimal` | 最终 **0警告、0错误**，`$p/build-final.log` |
+| `test VoiceLite.sln --no-restore --no-build --disable-build-servers -m:1 --logger "trx;LogFileName=v014-final.trx" --results-directory $p/tests -v minimal` | **105/105通过，0跳过**；设置 VOICELITE_TEST_ENGINE_ROOT 执行真实 FFmpeg 集成 |
+| `restore tools/VoiceLite.WorkflowProbe/VoiceLite.WorkflowProbe.csproj --force-evaluate --source .tools/nuget --disable-parallel`，随后 `build ... --no-restore --disable-build-servers -m:1 -v minimal` | 复用产品的工具重建通过，无新增依赖 |
+| `$py -B -m unittest discover -s tools -p "test_*.py" -v` | 显式设置 VOICELITE_WORKFLOW_PROBE_DOTNET / DLL，最终 **30/30通过，0跳过**，`$p/python-final.log` |
+| `publish src/VoiceLite.Desktop/VoiceLite.Desktop.csproj -c Release -r win-x64 --self-contained true --no-restore --disable-build-servers -m:1 -o $p/client -v minimal` | 自包含 0.1.4 发布通过 |
+| `tools/validate-offline.ps1 -PackageRoot $p/client -EngineRoot "dist/VoiceLite 离线验证 0.1.0/engine" -ReferencePath .artifacts/voice-quality-20261103/hutao-name-first-sentence-3.03s.wav -RolePackage dist/VoiceLite-hutao-E-experimental-20261104.zip -DataRoot $p/ui-real -Device nvidia -TimeoutSeconds 420` | 新目录真实角色导入/生成/导出/播放通过：mock=false、0.1.4、两辅助、**4.90秒32kHz WAV**，40.147秒全流程 |
+| 最终发布 EXE `--smoke-ui --data-dir $p/ui-real --device nvidia` | 无角色 CLI 参数，自动恢复同一角色 ID 与两辅助，**4.46秒 WAV**、实际播放完成，35.094秒；`restore-real.json` |
+| 最终发布 EXE `--smoke-ui --data-dir $p/ui-real --role custom --device nvidia` | 恢复自定义参考，启动日志 gpt=stock/sovits=stock、role=custom，**5.06秒 WAV**、实际播放完成，35.548秒；`custom-real.json` |
+| 最终发布 EXE `--smoke-ui --data-dir $p/ui-real --role <已导入ID> --mock` | 两辅助与角色恢复，明确模拟提示音 2秒；未加载真实模型 |
+| 最终发布 EXE `--smoke-ui --mock --data-dir <各自新目录>` 配五组非法 `--role` / `--role-package` 参数 | 不存在角色、不存在ZIP、两个缺失值、两个参数混用均 exit非0、passed=false、results未创建；`followups.json`共8项通过 |
+| `$py -B tools/package-client-update.py $p/client $p/base-010-package-files.json dist/VoiceLite-0.1.4-client-update packaging/START_HERE.txt` | 累积更新14个payload，**2213533字节**，SHA256 `5179589bb1e901ae66e425c8fd6e4170d99291c5b547a5aefba7a55501c03585`；不含角色/模型/用户录音 |
+| `$py -B tools/apply-client-update.py dist/VoiceLite-0.1.4-client-update "dist/VoiceLite 离线验证 0.1.0" --check`，再加 `--backup dist/VoiceLite-0.1.4-home-backup-20261104` 应用 | 校验通过、备份后应用成功，日常目录名保持原样 |
+| `$py -B tools/verify-package.py "dist/VoiceLite 离线验证 0.1.0"` | exit0，**40621文件、11519749847字节**完整SHA通过；日常EXE0.1.4.0 |
+| computer-use：打开日常EXE，点击“导入角色包”，原生文件框选择E ZIP；关闭后再次打开 | 实际按钮路径导入完成，E角色ID已保存、原自定义参考/两辅助保留，重开自动恢复E，窗口保持打开等待用户输入；没有自动生成 |
+| `git diff --check`、`git status --short`，检查测试模型进程和临时目录 | 差异检查通过；模型/音频/ZIP仍被忽略。最终进程与产物摘要见 `$p/verification-summary.json` |
+
+实际失败与修正：首批测试 ZIP 的保留名 AUX.wav 和 Create 模式 GetEntry 是测试构造问题，修正后通过；私有 followups 脚本初次因 Windows 默认 GBK 读取 UTF-8 报错，模型尚未启动，显式 UTF-8 后8项完成。复审发现清单非整数/超范围 bytes 可使 FormatException 逃逸并阻断启动，两种场景先复现 RED，再改 TryGetInt64；完整105项通过。真实解压开始后的取消与已安装 references junction 拒绝也已执行。
+
+独立只读复审最终无剩余 Critical / Important。实测 E 和自定义生成启动日志分别指向角色库权重和两组 stock；相似度沿用用户对 E 的主观选择，不扩大为所有文案验收。首轮资源采样整板显存4348MiB、进程树WorkingSet4328.62MiB，约1秒采样，不是最低配置或精确峰值。独立电脑断网首次运行、CPU真实合成继续按用户要求后置。
+
+## 真实角色微调、续训与 API 对照 — 2026-11-04
+
+用户授权先做一次小规模微调验证再决定界面。基线 `beca7fb`，客户端仍为 0.1.3；没有修改产品推理代码或日常模型。本节记录真实 GPU 训练，非 Mock；用户随后反馈“E更像”，已将原 GPT + 微调 SoVITS 的 E 组合设为本轮首选。机器转写尚未逐字人工校对。
+
+下表用 `$p` 表示 `E:\develop\github\voicelite\.artifacts\character-training-20261104`，`$py` 表示 `E:\ai\voice\GPT-SoVITS-v2pro-20261006\runtime\python.exe`，`$e` 表示 `$p\engine-source\GPT_SoVITS`，`$sdk` 表示工作区 `.tools\dotnet\dotnet.exe`。这些是实际命令固定路径的缩写，不要求用户照表重新训练。每个训练/特征子进程的完整 argv、PID、退出码、时限与耗时保存在 `$p\commands.jsonl`；日志保留于 `$p\logs`。
+
+| 实际命令或阶段 | 结果及证据 |
+|---|---|
+| `$py -B $p\setup_spike.py`，随后用 `New-Item -ItemType Junction` 连接已有 runtime / pretrained_models / G2PW / vendor | 记录 39 原音频、4 底模、222 上游源码/配置 SHA；源码副本和输入清单保留。普通沙箱创建链接被拒，使用本机授权环境创建成功；不是只读权限隔离 |
+| `$py -B -u $p\run_stage.py $p\transcribe.py` | 已有本地 Paraformer / VAD / 标点模型离线生成 29 条机器草稿，`logs/asr.log`。筛选后 18 条、115.936 秒，人工逐字审核未完成 |
+| `$py -B -u $p\run_stage.py $e\prepare_datasets\1-get-text.py` | exit 0，31.140 秒 |
+| 同上启动 `2-get-hubert-wav32k.py`、`2-get-sv.py` | 各 exit 0，23.797 / 7.969 秒 |
+| 同上启动 `3-get-semantic.py` | 首次 exit 1（错误使用普通 v2 配置，Plus 权重维度不符）；指定原有 `s2v2ProPlus.json` 后 exit 0，8.328 秒；`features-verified.json`：18/18 全部匹配 |
+| `$py -B -u $p\run_stage.py $e\s2_train.py --config $p\configs\s2.json` | 首次 checkpoint 目录缺失，2 轮保存时 exit 1；创建与上游 WebUI 相同的日志目录后重新从底模执行，**8 轮 exit 0，225.875 秒**；`train-sovits-fixed-dir.log` |
+| `$py -B -u $p\run_stage.py $e\s1_train.py --config_file $p\configs\s1.yaml` | 首次硬编码 DDP 的 wildcard rendezvous 被离线 socket 策略阻断；第一次单卡修正后 sampler 仍要求 process group。改用单设备和原 sampler 的 rank/replica 参数后，**15 轮 exit 0，72.453 秒**；`train-gpt-single-device.log` |
+| `$py -B -u $p\run_stage.py $e\s2_train.py --config $p\configs\s2-resume.json` | **exit 0，66.532 秒**；实际恢复 G/D 与优化器、epoch 8→9，无 pretrained fallback |
+| `$py -B -u $p\run_stage.py $e\s1_train.py --config_file $p\configs\s1-resume.yaml` | 首次 weights-only 拒绝本机自建 checkpoint 中的 WindowsPath；仅加入该标准库 safe global 后，**exit 0，22.484 秒**；恢复所有状态，15→16 轮、global_step 165→176。`resume-verified.json` 通过，数据集未变化 |
+| `$sdk restore $p\compare\Compare.csproj --source .tools/nuget --disable-parallel` | exit 0，使用已有本地 NuGet 缓存，`compare-restore.log` |
+| `$sdk build $p\compare\Compare.csproj --no-restore --disable-build-servers -m:1 -v minimal` | 最终 **0 警告、0 错误**，`compare-build-final.log` |
+| `$py -B $p\make_comparison_plan.py`，`$sdk $p\compare\bin\Debug\net8.0\Compare.dll $p\comparison-plan.json` | exit 0；D 底模、E 仅声学微调、F 两组微调，各自预热并真实合成三句+第一句重复。共 **12 段 32kHz PCM16 WAV**，`comparison/comparison-report.json` passed=true |
+| `$py -B -u $p\run_stage.py $p\finalize.py` | exit 0，12 段 FFmpeg 解码且非静音、两组权重有限且已更新、3 个完整 checkpoint 含优化器状态、39/4/222 个原文件 SHA 不变；ZIP 复制 SHA 与 CRC 通过，`final-audit.json` technical_passed=true |
+| `$py -B -u $p\run_stage.py $p\make_listening_previews.py` | exit 0；三段试听 MP3 仅调整固定增益，解码 RMS -23.997 / -23.990 / -23.997 dBFS、无削波、原 WAV SHA 不变；`listening-previews.json` |
+| 用户选择 E 后：`$py -B -u $p\export_selected_e.py` | exit 0；新 E 包 7 文件，ZIP CRC 和包内 5 个 payload SHA 全通过。GPT SHA=87133414860ea14ff6620c483a3db5ed07b44be42e2c3fcdad65523a729a745a，SoVITS SHA=9c4c1f1e7f36ad2e9e34ede6ab5869a4c6e301ae345288f46b98e53822dd28a2，均与试听 E 相同；原 F ZIP SHA 不变 |
+| `Get-CimInstance Win32_Process` 按实验/引擎命令行核对 | 导出后未发现本轮 Python、Compare、VoiceLite 或 FFmpeg 残留进程 |
+| `git diff --check`、`git status --short`，逐组检查 `comparison/runtime-*/references` | 差异检查通过；仅 4 个文档为提交候选，无模型/音频/私有脚本；三组临时参考目录均为 0 文件 |
+
+实验编排入口还运行过 `experiment.py prepare` / `finish-prepare` / `train` / `train-gpt-only` 和 `resume_spike.py` / `resume_spike.py --gpt-only`。初次恢复入口因便携 Python `_pth` 未加入脚本目录而 import 失败，补充私有脚本路径后完成；完整失败与修正日志均保留。没有把失败标为成功，也没有停用 weights-only 或修改既有 Python 环境。
+
+固定主参考 3.03 秒及两条辅助、中文、seed 20261103、temperature 1。D/E 的三句时长均为 5.32 / 4.16 / 5.22 秒，F 为 5.08 / 4.88 / 5.38 秒。三组各自的第一句与重复样本 SHA 一致；输入/模型 SHA 前后不变。使用已有 EngineProcessManager 和 TtsApiClient，权重切换连接前后核对进程拥有的 loopback socket；控制请求与生成有超时，各组独立进程，结束关闭 Job 并逐项清理临时参考。
+
+产物 `dist/VoiceLite-hutao-experimental-20261104.zip` 为 **304633151 字节**，SHA256 `ff4cb93863cb724785d28f84f81109b14c5696644ac3ac3604b06e6df11503fe`。7 个文件包含 F 候选两组推理权重、三参考、实验 metadata 与说明，不含训练集或完整恢复检查点。当前 0.1.3 GUI 不支持角色包导入；没有公开发布或推送模型/音频。
+
+听选后的新首选包为 `dist/VoiceLite-hutao-E-experimental-20261104.zip`，**304630055 字节**，SHA256 `f03c25f373daf093e89488390c17d2e1b78c9c26cc67f805f3f2199140c481ae`；原 GPT 底模 + 微调 9 轮 SoVITS，不含本次微调的 GPT。`listener-preference.json` 记录用户原话“E更像”，`selected-e-export.json` 记录导出和完整性结果；初次 F 包及技术报告保留。
+
+本轮新构建的是引用产品 Core/Infrastructure 的私有对照工具；**未重新执行上一轮 72 项 C# / 30 项 Python 测试**，不能将 11-03 的记录当成本次执行。真实训练/恢复/推理/导出检查如上。E 已获该次试听的主观选择；人工转写审核、更多文案发音/怪音、追加语料收益、GUI 导入均未验收。听选后的工作仅修改私有导出和文档，没有重新训练或修改产品代码；完整训练记录见 `CHARACTER_TRAINING.md`。
+
 ## 0.1.3 多参考GUI与本机交付 — 2026-11-03
 
 用户在温度1.0/0.8/0.6对照中反馈听感接近，B备用音频可播放，温度继续保留默认1.0。随后用锁定版本已存在的`aux_ref_audio_paths`能力，保持主参考、文字、文案、种子和温度不变，仅加入两段同角色辅助录音；用户明确反馈**D多参考更像**。这是该组样本的主观选择，不外推为所有素材或所有用户必然提升。

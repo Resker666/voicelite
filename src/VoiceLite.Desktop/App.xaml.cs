@@ -21,7 +21,7 @@ public partial class App : Application
             var bundled = Path.Combine(AppContext.BaseDirectory, "engine");
             var engineRoot = Arg("--engine") ?? (Directory.Exists(bundled) ? bundled : settings.EngineRoot);
             var manager = new EngineProcessManager();
-            var vm = new MainViewModel(new GenerationService(dataRoot, manager)) {
+            var vm = new MainViewModel(new GenerationService(dataRoot, manager), new RoleLibrary(dataRoot)) {
                 EngineRoot = engineRoot, ReferencePath = Arg("--reference") ?? settings.ReferencePath,
                 PromptText = settings.PromptText, PromptLanguage = settings.PromptLanguage, TextLanguage = settings.TextLanguage,
                 IsMock = e.Args.Contains("--mock"), Device = settings.Device
@@ -44,6 +44,20 @@ public partial class App : Application
                     "auto" => ComputeDevice.Auto, "nvidia" => ComputeDevice.Nvidia, "cpu" => ComputeDevice.Cpu,
                     _ => throw new VoiceLiteException("无效的 --device 参数，请使用 auto、nvidia 或 cpu。")
                 };
+            }
+            foreach (var flag in new[] { "--role-package", "--role" })
+                if (e.Args.Contains(flag) && (Arg(flag) is not { Length: > 0 } argument || argument.StartsWith("--", StringComparison.Ordinal)))
+                    throw new VoiceLiteException($"{flag} 需要角色包路径或角色标识。");
+            if (Arg("--role-package") is not null && Arg("--role") is not null)
+                throw new VoiceLiteException("请只使用 --role-package 或 --role 中的一个参数。");
+            var requestedRole = Arg("--role");
+            await vm.InitializeRolesAsync(Arg("--role-package") is not null || requestedRole == "custom" ? "" : requestedRole ?? settings.SelectedRoleId);
+            if (requestedRole is not null && requestedRole != "custom" && vm.SelectedRole.Id != requestedRole)
+                throw new VoiceLiteException("指定角色无法加载，请重新导入角色包。");
+            if (Arg("--role-package") is { } rolePackage)
+            {
+                await vm.ImportRoleAsync(rolePackage);
+                if (vm.Error.Length > 0) throw new VoiceLiteException(vm.Error);
             }
             var window = new MainWindow(vm, manager, settingsStore, dataRoot);
             MainWindow = window;

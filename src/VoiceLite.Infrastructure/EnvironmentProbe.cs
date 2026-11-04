@@ -15,6 +15,14 @@ public sealed class EnvironmentProbe : IEnvironmentProbe
             var file = new FileInfo(Path.Combine(options.EngineRoot, relative));
             items.Add(new(relative, file.Exists && file.Length > 0, file.Exists && file.Length > 0 ? "已找到" : "缺少资源，请重新获取完整离线包。"));
         }
+        if (options.Weights is { } weights)
+        {
+            foreach (var (name, path) in new[] { ("角色 GPT 权重", weights.GptPath), ("角色 SoVITS 权重", weights.SovitsPath) })
+            {
+                var valid = Path.IsPathFullyQualified(path) && File.Exists(path) && new FileInfo(path).Length > 0;
+                items.Add(new(name, valid, valid ? "已找到" : "角色权重缺失，请重新导入角色包。"));
+            }
+        }
         var api = Path.Combine(options.EngineRoot, "api_v2.py");
         if (File.Exists(api))
         {

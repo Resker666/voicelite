@@ -3,6 +3,7 @@ param(
     [Parameter(Mandatory=$true)][string]$ReferencePath,
     [Parameter(Mandatory=$true)][string]$DataRoot,
     [string]$EngineRoot,
+    [string]$RolePackage,
     [string[]]$AuxiliaryReferencePaths = @(),
     [ValidateSet('auto','nvidia','cpu')][string]$Device = 'auto',
     [ValidateRange(10,3600)][int]$TimeoutSeconds = 1000
@@ -65,6 +66,7 @@ $info.CreateNoWindow = $true
 $info.WorkingDirectory = $dataFull
 foreach ($arg in @('--smoke-ui', '--reference', [IO.Path]::GetFullPath($ReferencePath), '--data-dir', $dataFull, '--device', $Device)) { $info.ArgumentList.Add($arg) }
 if ($EngineRoot) { $info.ArgumentList.Add('--engine'); $info.ArgumentList.Add([IO.Path]::GetFullPath($EngineRoot)) }
+if ($RolePackage) { $info.ArgumentList.Add('--role-package'); $info.ArgumentList.Add([IO.Path]::GetFullPath($RolePackage)) }
 foreach ($auxiliaryReference in $AuxiliaryReferencePaths) {
     $info.ArgumentList.Add('--aux-reference'); $info.ArgumentList.Add([IO.Path]::GetFullPath($auxiliaryReference))
 }

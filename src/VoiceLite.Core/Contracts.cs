@@ -8,7 +8,10 @@ public interface IEngineDeviceResolver
     Task<EngineOptions> ResolveAsync(string engineRoot, string dataRoot, ComputeDevice device, CancellationToken cancellationToken = default);
 }
 public sealed record EngineOptions(string EngineRoot, string DataRoot, int Port = 0,
-    TimeSpan? StartupTimeout = null, TimeSpan? RequestTimeout = null, bool UseGpu = true);
+    TimeSpan? StartupTimeout = null, TimeSpan? RequestTimeout = null, bool UseGpu = true)
+{
+    public ModelWeights? Weights { get; init; }
+}
 public sealed record ProbeItem(string Name, bool Passed, string Message);
 public sealed record ProbeReport(IReadOnlyList<ProbeItem> Items)
 {
@@ -55,7 +58,7 @@ public sealed record TtsRequest(
 public sealed class VoiceLiteException(string message, Exception? inner = null) : Exception(message, inner);
 public sealed record GenerationInput(string EngineRoot, string ReferencePath, string PromptText,
     string PromptLanguage, string Text, string TextLanguage, bool IsMock = false, ComputeDevice Device = ComputeDevice.Auto,
-    IReadOnlyList<string>? AuxiliaryReferencePaths = null);
+    IReadOnlyList<string>? AuxiliaryReferencePaths = null, string? RoleId = null);
 public sealed record GeneratedAudio(string FilePath, WaveInfo Info, bool IsMock, string DeviceName = "");
 public interface IGenerationService
 {
