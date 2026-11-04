@@ -44,7 +44,10 @@ def main():
         if path.is_symlink() or not path.resolve().is_relative_to(source) or relative.split("/")[0].lower() == "engine":
             raise SystemExit("Unexpected publish path: " + relative)
         item = entry(path, relative)
-        if entries.get(relative, {}).get("sha256") != item["sha256"]:
+        # A cumulative update must also restore a component changed by an earlier
+        # update, even if this release returns to the original base bytes (e.g. LF/CRLF).
+        client_owned = relative == "engine_runner.py" or ("/" not in relative and relative.startswith("VoiceLite."))
+        if client_owned or entries.get(relative, {}).get("sha256") != item["sha256"]:
             payload.append((path, relative))
     destination.mkdir(parents=True)
     for path, relative in payload:
@@ -55,7 +58,7 @@ def main():
     shutil.copy2(Path(__file__).with_name("apply-client-update.py"), destination / "apply-client-update.py")
     (destination / "README-UPDATE.txt").write_text(
         f"VoiceLite {version} cumulative client update\n\n"
-        "Includes OGG import/preview and CPU/NVIDIA device selection. Apply directly to the original full offline package.\n"
+        "Includes OGG import/preview, CPU/NVIDIA selection and optional auxiliary reference recordings. Apply directly to the original full offline package.\n"
         "Close VoiceLite and its engine before updating. Use the Python inside your full package:\n"
         '  "<package>\\engine\\runtime\\python.exe" -B apply-client-update.py "<update>" "<package>" --check\n'
         '  "<package>\\engine\\runtime\\python.exe" -B apply-client-update.py "<update>" "<package>" --backup "<new-backup-folder>"\n'

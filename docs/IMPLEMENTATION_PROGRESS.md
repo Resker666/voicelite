@@ -62,3 +62,25 @@ Plan: docs/superpowers/plans/2026-11-02-voicelite.md
 - 只读审查发现验证工具的路径隔离有末尾斜杠/junction/Windows设备路径别名边界；在临时假引擎上分别复现失败后，使用目录句柄规范化并拒绝链接祖先。27项Python测试（含6项显式启用的CLI路径边界测试）通过，审查无剩余Important问题。
 - 严格关闭断言要求无错误且确实进入取消状态。真实模型验收原始证据在.artifacts/workflow-20261103，各次运行保持独立目录；最终结果见TEST_REPORT。
 - 产品代码仍为0.1.2，本轮没有修改推理算法、用户音频、已有Python环境或模型。CPU真实合成继续延期；当前范围只验证这台电脑的NVIDIA流程。
+
+## 音色对照实验 — 2026-11-03
+
+- 用户在当前真实模型测试中认为声音不像；确认日志为real/NVIDIA，通用v2ProPlus预训练模型，未加载胡桃专用微调权重。
+- 只读音频分析显示原参考约9.77秒、生成音高中位数较低；这是诊断线索，不是相似度评分。按句间停顿制作3.03秒第一句参考候选，用户反馈更像一些。
+- 用户确认关闭日常VoiceLite后运行单引擎参数对照。复用WorkflowProbe增加--quality模式；共享原路径隔离检查、受控进程与HTTP客户端，不修改模型或日常设置。
+- TtsRequest新增seed/temperature默认-1/1（与已锁定API相同）。两项回归先RED再GREEN；当前C#61/61，Python28/28，构建0警告0错误。
+- 第一批冷/热重复有波形差异，保留证据；增加同输入预热后重新生成。最终A温度1.0与重复控制逐字节一致，B0.8和C0.6均输出有效WAV。样本在.artifacts/quality-comparison-20261103/samples-warm。
+- 已向用户展示A/B/C并询问哪个更接近期望音色与语气。当前等待听感选择，未自动推荐温度、未宣称音色相似度已通过，GUI也尚未新增参数控件。
+- 首次听选反馈A/C差不多、B预览无声。B实际PCM/音量正常，已验证解码并提供短文件名WAV及MP3备用试听；等待确认播放与听感，不把未核实的播放问题当成推理参数问题。
+
+## 0.1.3 多参考GUI — 2026-11-03
+
+- 用户确认B备用可播放，A/B/C听感接近，温度保留1.0。核对锁定TTS.py和models.py确实支持aux_ref_audio_paths并平均融合每段参考的声线条件；用同一主参考/文案/种子做单参考和主+两条辅助对照，用户明确选择D更像。
+- 辅助为用户本地About_the_Vision（6.28秒）与Good_Morning（4.096秒），无需额外参考文字；这些音频仅用于私人实验，没有入包或Git。
+- 已接入GUI添加/试听/移除、最多3条、去重、主参考变化清空、旧设置兼容、保存恢复；GenerationService实际导入全部参考并传给API，逐条尝试清理。源版本更新到0.1.3，依赖版本未变，项目引用锁文件已本地更新并locked restore通过。
+- 当前C#72/72、Python30/30。CLI显式辅助参数曾被软校验跳过，实际Mock CLI回归先RED后GREEN，已改为启动前拒绝；ComparisonCleanup锁定文件/缺失哈希两项回归先RED后GREEN，逐条独立处理。复审无剩余Important。
+- 0.1.3真实WPF生成/导出/实际播放通过：auxiliary_reference_count=2，4.66秒32kHz WAV，41.261秒全流程；新数据目录重启Mock恢复两条辅助选择通过。
+- 更新包首次预检查因installed engine_runner.py为CRLF而原基包/当前源为LF而拒绝（未修改日常目录）。修复累积补丁始终包含受管VoiceLite.*及包装脚本，新增回归通过。失败候选已保留于.artifacts/voicelite-013-20261103/rejected-first-update。
+- 最终更新包dist/VoiceLite-0.1.3-client-update.zip：2193475字节，SHA256=04c5abb6c04339e70da36da379f8f75281819998da766a33331610327610e224，14个payload。
+- 日常目录已备份并应用到0.1.3.0；备份dist/VoiceLite-0.1.3-home-backup-20261103。pipeline74059 exit0，40621文件/11519703265字节完整SHA通过。安装后Mock恢复两条辅助/播放通过；已打开真实日常GUI128596并预选D组合，主参考永久副本在%LOCALAPPDATA%/VoiceLite/voice-presets，未自动生成。
+- 最终代码72项C#、30项Python测试通过，坏CLI与累积补丁新增回归均经历RED→GREEN；只读审查无剩余Important。真实GUI证据及安装记录在.artifacts/voicelite-013-20261103。仍未提交/推送，本机范围之外验收后置。

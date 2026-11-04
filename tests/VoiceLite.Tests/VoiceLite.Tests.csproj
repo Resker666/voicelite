@@ -7,6 +7,7 @@
     <ProjectReference Include="../../src/VoiceLite.Infrastructure/VoiceLite.Infrastructure.csproj" />
     <ProjectReference Include="../../tools/VoiceLite.TestEngine/VoiceLite.TestEngine.csproj" ReferenceOutputAssembly="false" />
   </ItemGroup>
+  <ItemGroup><Compile Include="../../tools/VoiceLite.WorkflowProbe/ComparisonCleanup.cs" Link="ComparisonCleanup.cs" /></ItemGroup>
   <Target Name="CopyTestEngine" AfterTargets="Build">
     <ItemGroup><HelperFiles Include="../../tools/VoiceLite.TestEngine/bin/$(Configuration)/net8.0/*" /></ItemGroup>
     <Copy SourceFiles="@(HelperFiles)" DestinationFolder="$(OutDir)TestEngine" />

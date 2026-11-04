@@ -12,6 +12,8 @@ public sealed class TtsApiClient(HttpMessageHandler? handler = null) : ITtsApiCl
         cancellationToken.ThrowIfCancellationRequested();
         if (string.IsNullOrWhiteSpace(request.Text) || string.IsNullOrWhiteSpace(request.PromptText) || !Path.IsPathFullyQualified(request.ReferencePath))
             throw new VoiceLiteException("请填写合成文字、参考文字并选择有效录音。");
+        if ((request.AuxiliaryReferencePaths ?? []).Any(path => string.IsNullOrWhiteSpace(path) || !Path.IsPathFullyQualified(path)))
+            throw new VoiceLiteException("辅助参考录音必须使用有效的本地绝对路径。");
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         deadline.CancelAfter(timeout);
         try

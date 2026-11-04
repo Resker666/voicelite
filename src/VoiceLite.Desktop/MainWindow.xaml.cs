@@ -27,6 +27,7 @@ public partial class MainWindow : Window
         InitializeComponent(); DataContext = vm;
         Title = $"VoiceLite {typeof(App).Assembly.GetName().Version?.ToString(3)} · 本地声音克隆";
         EngineSettings.IsExpanded = string.IsNullOrWhiteSpace(vm.EngineRoot) && !vm.IsMock;
+        AuxiliarySettings.IsExpanded = vm.AuxiliaryReferences.Count > 0;
     }
     private void SelectEngine_Click(object sender, RoutedEventArgs e)
     {
@@ -39,6 +40,15 @@ public partial class MainWindow : Window
         if (dialog.ShowDialog(this) == true) SetReference(dialog.FileName);
     }
     private void SetReference(string path) { StopPlayback(); vm.ReferencePath = path; vm.PromptText = ""; }
+    private void AddAuxiliary_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new OpenFileDialog { Title = "选择同一声音的辅助录音（最多3条）", Filter = ReferenceAudioFormats.FileDialogFilter, Multiselect = true };
+        if (dialog.ShowDialog(this) == true) vm.AddAuxiliaryReferences(dialog.FileNames);
+    }
+    private async void PlayAuxiliary_Click(object sender, RoutedEventArgs e)
+    { if (AuxiliaryList.SelectedItem is AudioReferenceChoice item) await PlayWithMessageAsync(item.Path); }
+    private void RemoveAuxiliary_Click(object sender, RoutedEventArgs e)
+    { if (AuxiliaryList.SelectedItem is AudioReferenceChoice item) vm.AuxiliaryReferences.Remove(item); }
     private void Reference_DragOver(object sender, DragEventArgs e) { e.Effects = vm.CanEdit && e.Data.GetDataPresent(DataFormats.FileDrop) ? DragDropEffects.Copy : DragDropEffects.None; e.Handled = true; }
     private void Reference_Drop(object sender, DragEventArgs e)
     {
@@ -114,6 +124,7 @@ public partial class MainWindow : Window
         await vm.GenerateCommand.ExecuteAsync(null);
         if (!vm.HasResult || vm.Error.Length > 0) throw new VoiceLiteException(vm.Error.Length > 0 ? vm.Error : "No UI result");
         await Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.ContextIdle);
+        if (vm.AuxiliaryReferences.Count > 0) { AuxiliarySettings.IsExpanded = true; AuxiliarySettings.BringIntoView(); }
         UpdateLayout();
         var screenshot = new RenderTargetBitmap((int)ActualWidth, (int)ActualHeight, 96, 96, PixelFormats.Pbgra32);
         screenshot.Render(this);
@@ -125,7 +136,7 @@ public partial class MainWindow : Window
         var info = WaveInfo.Inspect(await File.ReadAllBytesAsync(exported));
         await File.WriteAllTextAsync(Path.Combine(dataRoot, "ui-smoke.json"), JsonSerializer.Serialize(new {
             passed = true, mock = vm.IsMock, actual_device = vm.ActualDevice, requested_device = vm.Device.ToString(), client_version = typeof(App).Assembly.GetName().Version?.ToString(3), status = vm.Status, seconds = info.DurationSeconds,
-            sample_rate = info.SampleRate, playback_completed = true, playback_checked_seconds = playbackSeconds,
+            sample_rate = info.SampleRate, auxiliary_reference_count = vm.AuxiliaryReferences.Count, playback_completed = true, playback_checked_seconds = playbackSeconds,
             playback_source_format = Path.GetExtension(playbackCheck ?? exported).ToLowerInvariant(), elapsed_seconds = clock.Elapsed.TotalSeconds
         }, new JsonSerializerOptions { WriteIndented = true }));
     }
@@ -144,7 +155,9 @@ public partial class MainWindow : Window
             await environmentCheck;
             await manager.StopAsync();
             if (vm.GenerateCommand.ExecutionTask is { } pending) await pending;
-            await store.SaveAsync(new(vm.EngineRoot, vm.ReferencePath, vm.PromptText, vm.PromptLanguage, vm.TextLanguage, vm.Device));
+            await store.SaveAsync(new(vm.EngineRoot, vm.ReferencePath, vm.PromptText, vm.PromptLanguage, vm.TextLanguage, vm.Device) {
+                AuxiliaryReferencePaths = vm.AuxiliaryReferences.Select(x => x.Path).ToArray()
+            });
         }
         catch (Exception exception) { new AppLog(dataRoot).Write("close", exception.GetType().Name); }
         finally { await manager.DisposeAsync(); player.Close(); }

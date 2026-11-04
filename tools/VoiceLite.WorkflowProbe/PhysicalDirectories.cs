@@ -8,6 +8,27 @@ namespace VoiceLite.WorkflowProbe;
 
 internal static class PhysicalDirectories
 {
+    public static (string Engine, string Data) ValidateExperiment(string engine, string data)
+    {
+        engine = Path.GetFullPath(engine); data = Path.GetFullPath(data);
+        WorkflowChecks.Require(Directory.Exists(engine), "Engine directory is missing.");
+        WorkflowChecks.Require(!Directory.Exists(data) && !File.Exists(data), "Use a fresh data directory.");
+        WorkflowChecks.Require(!HasLinkedAncestor(data) && !HasLinkedAncestor(engine),
+            "Test data must be outside the engine; use physical paths without directory links.");
+        engine = Resolve(engine); data = Resolve(data);
+        var relative = Path.GetRelativePath(engine, data);
+        WorkflowChecks.Require(Path.IsPathRooted(relative) || relative == ".."
+            || relative.StartsWith(".." + Path.DirectorySeparatorChar, StringComparison.Ordinal),
+            "Test data must be outside the engine; use physical paths without directory links.");
+        return (engine, data);
+    }
+    private static bool HasLinkedAncestor(string path)
+    {
+        for (var directory = new DirectoryInfo(path); directory is not null; directory = directory.Parent)
+            if (directory.Exists && (directory.Attributes & FileAttributes.ReparsePoint) != 0) return true;
+        return false;
+    }
+
     // Compare directory identities after Windows resolves extended, short and mapped paths.
     // https://learn.microsoft.com/windows/win32/api/fileapi/nf-fileapi-getfinalpathnamebyhandlew
     public static string Resolve(string path)

@@ -1,5 +1,64 @@
 # VoiceLite 验证报告
 
+## 0.1.3 多参考GUI与本机交付 — 2026-11-03
+
+用户在温度1.0/0.8/0.6对照中反馈听感接近，B备用音频可播放，温度继续保留默认1.0。随后用锁定版本已存在的`aux_ref_audio_paths`能力，保持主参考、文字、文案、种子和温度不变，仅加入两段同角色辅助录音；用户明确反馈**D多参考更像**。这是该组样本的主观选择，不外推为所有素材或所有用户必然提升。
+
+辅助输入为本机About_the_Vision（6.28秒）和Good_Morning（4.096秒）；主参考为用户确认过的3.03秒候选。锁定TTS.py将辅助音频加入refer_spec，models.py对各段声线/SV条件求均值；只有主参考需要文字，没有训练、下载新模型或重写推理算法。每个条件独立预热；单/多参考的各自重复样本哈希都一致，原始3段输入SHA未变。原始报告在`.artifacts/quality-comparison-20261103/samples-references/comparison-report.json`。
+
+GUI已接入添加/多选/试听/移除、最多3条、去重和旧设置兼容；更换主参考清空辅助项。GenerationService实际转换和传送辅助路径，成功/取消后逐条尝试清理。源版本0.1.3，NuGet依赖版本未变，项目引用版本对应的锁文件已本地更新。
+
+| 实际验证 | 结果与证据 |
+|---|---|
+| 项目内SDK `restore VoiceLite.sln --force-evaluate --source .tools/nuget --disable-parallel`，随后`restore --locked-mode --source .tools/nuget --disable-parallel` | 更新项目版本后锁定还原通过，无依赖下载 |
+| `build VoiceLite.sln --no-restore --disable-build-servers -m:1 -v minimal` | 最终0警告、0错误 |
+| `test VoiceLite.sln --no-restore --no-build --disable-build-servers -m:1 --logger "trx;LogFileName=v013-final.trx" --results-directory .artifacts/voicelite-013-20261103/tests -v minimal` | **72/72通过、0跳过**，包含真实FFmpeg及多参考成功/取消/设置回归 |
+| 包内Python `-B -m unittest discover -s tools -p "test_*.py" -v`，显式启用CLI边界 | **30/30通过**，包括真实Desktop Mock启动的坏辅助路径拒绝及累积补丁回归 |
+| `publish src/VoiceLite.Desktop/VoiceLite.Desktop.csproj -c Release -r win-x64 --self-contained true --no-restore --disable-build-servers -m:1 -o .artifacts/voicelite-013-20261103/client` | 通过，EXE0.1.3.0 |
+| `tools/validate-offline.ps1 -PackageRoot .artifacts/voicelite-013-20261103/client -EngineRoot "dist/VoiceLite 离线验证 0.1.0/engine" -ReferencePath .artifacts/voice-quality-20261103/hutao-name-first-sentence-3.03s.wav -AuxiliaryReferencePaths <上述两条OGG> -DataRoot .artifacts/voicelite-013-20261103/ui-real -Device nvidia -TimeoutSeconds 420` | **真实GUI通过**；mock=false、0.1.3、NVIDIA CUDA、辅助计数2、4.66秒32kHz WAV，导出及实际播放完成，全流程41.261秒 |
+| 复制该次settings到新测试目录，运行发布EXE `--smoke-ui --mock --data-dir .artifacts/voicelite-013-20261103/ui-restore-mock` | 不传辅助CLI参数也恢复2条，2秒提示音生成/导出/播放通过 |
+| 从原0.1.0 ZIP只读取原始package-files.json，运行`tools/package-client-update.py`制作累积更新 | 最终14个payload，2193475字节，SHA见OFFLINE_PACKAGE |
+| 包内Python `tools/apply-client-update.py <0.1.3解压目录> <日常目录> --check`，随后`--backup dist/VoiceLite-0.1.3-home-backup-20261103` | 校验、备份、升级成功，日常EXE0.1.3.0 |
+| 包内Python `tools/verify-package.py "dist/VoiceLite 离线验证 0.1.0"` | **40621文件/11519703265字节**完整SHA通过，模型未替换 |
+| 安装后日常EXE `--smoke-ui --mock --data-dir .artifacts/voicelite-013-20261103/ui-installed-mock`（新目录复制测试设置） | 启动/恢复两条辅助/2秒提示音导出及播放通过 |
+
+上表SDK命令均使用`.tools/dotnet/dotnet.exe`8.0.427和项目内CLI/NuGet目录。UI截图已检查，辅助名称与2/3计数正常；截图为滚动到辅助区域的状态。约1秒采样中真实GUI进程树WorkingSet峰值4154.82 MiB、Python4001.42 MiB、整板显存4689 MiB；这不是精确峰值、独立进程显存或最低配置要求。
+
+本轮实际发现并经RED→GREEN修复：辅助传参/非法路径、日常服务与设置6项、ComparisonCleanup锁文件不应跳过其他清理及缺失哈希不应报通过2项、显式CLI坏辅助路径应在推理前拒绝、累积补丁应覆盖早期版本改变后本版恢复原基包字节的受管组件。首次升级因包装脚本仅换行差异被校验挡住，未造成部分安装；旧失败候选保留，修复后完成上述真实升级。最终只读复审无剩余Important问题。
+
+真实/Mock区分、原始记录和所有命令输出保存在`.artifacts/voicelite-013-20261103/`。本机3.03秒参考已复制到个人数据目录voice-presets，原文件保留；日常客户端已打开并预选用户认可的主+两条辅助组合。程序没有自动开始生成，用户可输入文案继续试听。独立电脑断网验收仍按用户要求后置，CPU真实合成仍未执行。
+
+## 本机音色参数对照 — 2026-11-03
+
+用户试听3.03秒参考候选后反馈“有点像了，仍有提升空间”。这不是音色相似度验收通过；本轮进一步生成控制变量样本供用户听选。参考来自用户本机素材，只放在忽略目录中。
+
+固定同一3.03秒参考、对应文字、中文文案及种子20261103。文案为“你好，今天我们一起出去走走，顺便看看有什么有趣的事情吧。”。使用本地已锁定v2ProPlus/NVIDIA引擎，仅改变温度；top_k、top_p、语速等保持同一上游默认值。
+
+| 最终预热后样本 | 温度 | WAV时长 | 结果 |
+|---|---|---|---|
+| A-default | 1.0 | 5.32秒 | 有效32kHz WAV |
+| A-repeat | 1.0 | 5.32秒 | 与A-default逐字节一致，SHA256均为`AFF84B1E39ED9FEF0CA7F7DB0E8BBF99B28256C41DCDC9B0C726D8F95CAD6390` |
+| B-temperature-0.8 | 0.8 | 4.80秒 | 有效32kHz WAV，用户确认备用版可播放，听感与A/C接近 |
+| C-temperature-0.6 | 0.6 | 5.84秒 | 有效32kHz WAV，用户反馈与A接近 |
+
+该轮先加载模型（17.232秒），再用相同输入预热（5.925秒）并丢弃预热输出，随后采集对照样本。原参考SHA保持一致。每段参数和哈希见`.artifacts/quality-comparison-20261103/samples-warm/comparison-report.json`；报告明确`similarity_improvement_verified=false`，没有自动选择更好的温度。固定种子与重复一致只证明本机本轮的变量控制，不保证不同硬件或版本逐字节一致。
+
+用户首次反馈A、C听感接近，B在聊天预览里没有声音。复查原始B的PCM非零样本125696个、峰值-9.76dBFS、RMS-27.66dBFS；A/C的RMS约-27.88/-27.99dBFS，B文件并非数字静音且音量相近。已提供内容哈希完全相同的短文件名`B.wav`和编码为MP3的备用播放文件，两者FFmpeg解码均通过。用户随后确认备用B可播放，三者听感接近；没有选择降低温度作为改进方案。具体预览故障原因未确认，不把温度0.8记为模型静音。
+
+初始未单独预热的批次保留在同目录的`samples/`：同参数重复时长一致，但波形哈希不同；PCM相关系数约0.999836，差异信号相对原信号约-34.85dB。首次请求含参考特征/AR加速器初始化，因此没有把冷A与温B/C的耗时差异归因于温度。最终试听使用上述`samples-warm/`批次。
+
+实际代码与命令：
+
+- `TtsRequest`增加`seed`、`temperature`两个JSON字段，默认仍为锁定API的-1、1；新增默认值和实际HTTP传参测试先2项失败，补齐后通过。日常GUI未增加控制项，也未将某档温度设为推荐值。
+- 项目内SDK运行`dotnet build VoiceLite.sln --no-restore --disable-build-servers -m:1 -v minimal`：0警告、0错误。
+- `dotnet test VoiceLite.sln --no-restore --no-build --disable-build-servers -m:1 --logger "trx;LogFileName=quality-green.trx" --results-directory .artifacts/quality-comparison-20261103/tests -v minimal`：**61/61通过、0跳过**。
+- `dotnet build tools/VoiceLite.WorkflowProbe/VoiceLite.WorkflowProbe.csproj --no-restore --disable-build-servers -m:1 -v minimal`：0警告、0错误。
+- 包内Python运行`-B -m unittest discover -s tools -p "test_*.py" -v`，显式启用CLI边界测试：**28/28通过**；新增对照模式拒绝输出到引擎目录的回归。
+- `dotnet tools/VoiceLite.WorkflowProbe/bin/Debug/net8.0-windows/VoiceLite.WorkflowProbe.dll --quality .artifacts/quality-comparison-20261103/input-warm.json`：预热和4段真实样本生成通过，进程退出。运行前用户已确认关闭日常VoiceLite，避免在8GB显卡上并行加载两份模型。
+- 只读审查无剩余Important问题；其中冷启动公平性建议已通过预热与重复控制处理。
+
+上述`dotnet`均指项目内SDK8.0.427，使用既有NuGet缓存。原始RED/GREEN、构建、生成记录在`.artifacts/quality-comparison-20261103/`。没有下载模型、上传用户音频或改动既有Python环境。用户反馈温度组听感相近，因此没有在GUI增加温度控件；随后多参考对照的选择及GUI接入结果见本报告顶部。
+
 ## 本机真实取消与恢复验收 — 2026-11-03
 
 本轮按用户要求只完成自己电脑上的流程，独立电脑/干净Windows断网验收后置，不作为当前本机迭代的前置条件。设备仍为RTX 4070 Laptop 8GB，产品版本0.1.2；CPU真实合成没有在本轮执行。

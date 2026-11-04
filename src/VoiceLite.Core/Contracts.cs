@@ -44,6 +44,9 @@ public sealed record TtsRequest(
     [property: JsonPropertyName("prompt_lang")] string PromptLanguage)
 {
     [JsonIgnore] public bool UseGpu { get; init; } = true;
+    [JsonPropertyName("seed")] public int Seed { get; init; } = -1;
+    [JsonPropertyName("temperature")] public double Temperature { get; init; } = 1;
+    [JsonPropertyName("aux_ref_audio_paths")] public IReadOnlyList<string> AuxiliaryReferencePaths { get; init; } = [];
     [JsonPropertyName("media_type")] public string MediaType => "wav";
     [JsonPropertyName("streaming_mode")] public bool Streaming => false;
     [JsonPropertyName("text_split_method")] public string SplitMethod => "cut5";
@@ -51,7 +54,8 @@ public sealed record TtsRequest(
 }
 public sealed class VoiceLiteException(string message, Exception? inner = null) : Exception(message, inner);
 public sealed record GenerationInput(string EngineRoot, string ReferencePath, string PromptText,
-    string PromptLanguage, string Text, string TextLanguage, bool IsMock = false, ComputeDevice Device = ComputeDevice.Auto);
+    string PromptLanguage, string Text, string TextLanguage, bool IsMock = false, ComputeDevice Device = ComputeDevice.Auto,
+    IReadOnlyList<string>? AuxiliaryReferencePaths = null);
 public sealed record GeneratedAudio(string FilePath, WaveInfo Info, bool IsMock, string DeviceName = "");
 public interface IGenerationService
 {

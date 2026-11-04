@@ -3,6 +3,7 @@ param(
     [Parameter(Mandatory=$true)][string]$ReferencePath,
     [Parameter(Mandatory=$true)][string]$DataRoot,
     [string]$EngineRoot,
+    [string[]]$AuxiliaryReferencePaths = @(),
     [ValidateSet('auto','nvidia','cpu')][string]$Device = 'auto',
     [ValidateRange(10,3600)][int]$TimeoutSeconds = 1000
 )
@@ -64,6 +65,9 @@ $info.CreateNoWindow = $true
 $info.WorkingDirectory = $dataFull
 foreach ($arg in @('--smoke-ui', '--reference', [IO.Path]::GetFullPath($ReferencePath), '--data-dir', $dataFull, '--device', $Device)) { $info.ArgumentList.Add($arg) }
 if ($EngineRoot) { $info.ArgumentList.Add('--engine'); $info.ArgumentList.Add([IO.Path]::GetFullPath($EngineRoot)) }
+foreach ($auxiliaryReference in $AuxiliaryReferencePaths) {
+    $info.ArgumentList.Add('--aux-reference'); $info.ArgumentList.Add([IO.Path]::GetFullPath($auxiliaryReference))
+}
 foreach ($name in @('DOTNET_ROOT','DOTNET_ROOT_X64','PYTHONPATH','PYTHONHOME')) { $info.Environment.Remove($name) | Out-Null }
 $info.Environment['PATH'] = [Environment]::SystemDirectory + ';' + [Environment]::GetFolderPath('Windows')
 $info.Environment['HF_HOME'] = Join-Path $dataFull 'empty-hf-cache'

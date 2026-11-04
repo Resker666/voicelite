@@ -59,6 +59,51 @@ public sealed class ServiceTests
         await Assert.ThrowsAsync<VoiceLiteException>(() => new TtsApiClient(handler).GenerateAsync(new Lease(false), Fixtures.Request(), TimeSpan.FromSeconds(5), default));
         Assert.Equal(0, handler.Calls);
     }
+    [Fact] public void Sampling_defaults_match_the_pinned_api()
+    {
+        var body = JsonSerializer.SerializeToElement(Fixtures.Request());
+        Assert.Equal(-1, body.GetProperty("seed").GetInt32());
+        Assert.Equal(1, body.GetProperty("temperature").GetDouble());
+        Assert.Empty(body.GetProperty("aux_ref_audio_paths").EnumerateArray());
+    }
+    [Fact] public async Task Client_sends_explicit_seed_and_temperature_for_comparison()
+    {
+        var values = JsonSerializer.SerializeToNode(Fixtures.Request())!;
+        values["seed"] = 20261103;
+        values["temperature"] = 0.8;
+        var input = values.Deserialize<TtsRequest>()!;
+        var handler = new RecordingHandler(async request => {
+            using var body = JsonDocument.Parse(await request.Content!.ReadAsStringAsync());
+            Assert.Equal(20261103, body.RootElement.GetProperty("seed").GetInt32());
+            Assert.Equal(0.8, body.RootElement.GetProperty("temperature").GetDouble());
+            return Fixtures.Response(Fixtures.Wav(), "audio/wav");
+        });
+        await new TtsApiClient(handler).GenerateAsync(new Lease(), input, TimeSpan.FromSeconds(2), default);
+        Assert.Equal(1, handler.Calls);
+    }
+    [Fact] public async Task Client_sends_auxiliary_reference_paths()
+    {
+        var paths = new[] { "C:\\first.wav", "C:\\second.wav" };
+        var values = JsonSerializer.SerializeToNode(Fixtures.Request())!;
+        values["aux_ref_audio_paths"] = JsonSerializer.SerializeToNode(paths);
+        var input = values.Deserialize<TtsRequest>()!;
+        var handler = new RecordingHandler(async request => {
+            using var body = JsonDocument.Parse(await request.Content!.ReadAsStringAsync());
+            Assert.Equal(paths, body.RootElement.GetProperty("aux_ref_audio_paths").EnumerateArray().Select(x => x.GetString()!));
+            return Fixtures.Response(Fixtures.Wav(), "audio/wav");
+        });
+        await new TtsApiClient(handler).GenerateAsync(new Lease(), input, TimeSpan.FromSeconds(2), default);
+    }
+    [Theory] [InlineData("relative.wav")] [InlineData("")]
+    public async Task Client_rejects_invalid_auxiliary_paths_before_sending(string path)
+    {
+        var values = JsonSerializer.SerializeToNode(Fixtures.Request())!;
+        values["aux_ref_audio_paths"] = JsonSerializer.SerializeToNode(new[] { path });
+        var input = values.Deserialize<TtsRequest>()!;
+        var handler = new RecordingHandler(_ => Task.FromResult(Fixtures.Response(Fixtures.Wav(), "audio/wav")));
+        await Assert.ThrowsAsync<VoiceLiteException>(() => new TtsApiClient(handler).GenerateAsync(new Lease(), input, TimeSpan.FromSeconds(2), default));
+        Assert.Equal(0, handler.Calls);
+    }
     [Fact] public async Task Client_refuses_non_loopback_even_with_a_lease()
     {
         var handler = new RecordingHandler(_ => Task.FromResult(Fixtures.Response(Fixtures.Wav(), "audio/wav")));

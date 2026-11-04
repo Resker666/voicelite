@@ -26,6 +26,18 @@ public partial class App : Application
                 PromptText = settings.PromptText, PromptLanguage = settings.PromptLanguage, TextLanguage = settings.TextLanguage,
                 IsMock = e.Args.Contains("--mock"), Device = settings.Device
             };
+            var auxiliaryArguments = new List<string>();
+            for (int i = 0; i < e.Args.Length; i++)
+            {
+                if (e.Args[i] != "--aux-reference") continue;
+                if (++i >= e.Args.Length || e.Args[i].StartsWith("--", StringComparison.Ordinal))
+                    throw new VoiceLiteException("--aux-reference需要录音文件路径。");
+                auxiliaryArguments.Add(e.Args[i]);
+            }
+            vm.AddAuxiliaryReferences(auxiliaryArguments.Count > 0 ? auxiliaryArguments
+                : Arg("--reference") is null ? settings.AuxiliaryReferencePaths : []);
+            if (auxiliaryArguments.Count > 0 && (vm.Error.Length > 0 || vm.AuxiliaryReferences.Count != auxiliaryArguments.Count))
+                throw new VoiceLiteException("辅助参考录音未全部加载，请检查文件是否存在、格式有效、没有重复且不超过3条。");
             if (Arg("--device") is { } device)
             {
                 vm.Device = device.ToLowerInvariant() switch {

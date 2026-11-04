@@ -79,7 +79,27 @@ class ClientUpdateTests(unittest.TestCase):
             self.assertEqual("0.1.2", update["version"])
             self.assertIn("package-files.json", {item["path"] for item in update["files"]})
             self.assertIn("apply-client-update.py", {item["path"] for item in update["files"]})
-            self.assertNotIn("VoiceLite.exe", {item["path"] for item in update["files"]})
+            self.assertIn("VoiceLite.exe", {item["path"] for item in update["files"]})
+
+    def test_cumulative_update_restores_owned_files_even_when_they_match_original_base(self):
+        owned = ("engine_runner.py", "VoiceLite.runtimeconfig.json", "VoiceLite.exe")
+        for name in owned:
+            (self.package / name).write_bytes(b"current\n")
+            (self.published / name).write_bytes(b"current\n")
+        self.original_manifest['files'] = [entry(path, path.relative_to(self.package).as_posix())
+                                           for path in sorted(self.package.rglob('*')) if path.is_file() and path.name != 'package-files.json']
+        self.base.write_text(json.dumps(self.original_manifest))
+        # A previous update/checkout changed these files; the new release returns to base bytes.
+        for name in owned:
+            (self.package / name).write_bytes(b"previous\r\n")
+        self.build_valid_update()
+        metadata = json.loads((self.update / 'client-update.json').read_text())
+        self.assertTrue(set(owned).issubset({item['path'] for item in metadata['files']}))
+        result = self.run_update(self.update, self.package, '--backup', self.root / 'backup-owned')
+        self.assertEqual(0, result.returncode, result.stderr)
+        for name in owned:
+            self.assertEqual(b"current\n", (self.package / name).read_bytes())
+        self.assertEqual(b"existing model", (self.package / 'engine/model.bin').read_bytes())
 
     def test_version_defaults_to_project_version(self):
         result = self.build_update(explicit_version=False)

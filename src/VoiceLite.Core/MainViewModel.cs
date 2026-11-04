@@ -1,5 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using System.Collections.ObjectModel;
 namespace VoiceLite.Core;
 
 public sealed class MainViewModel : ObservableObject
@@ -12,7 +13,9 @@ public sealed class MainViewModel : ObservableObject
     private CancellationTokenSource? environmentCancellation;
     private string status = "准备好后，输入文字并点击生成。", error = "", resultPath = "", resultDescription = "生成后可在这里试听并保存 WAV。";
     public string EngineRoot { get => engineRoot; set => SetProperty(ref engineRoot, value); }
-    public string ReferencePath { get => referencePath; set => SetProperty(ref referencePath, value); }
+    public string ReferencePath { get => referencePath; set { if (SetProperty(ref referencePath, value)) AuxiliaryReferences.Clear(); } }
+    public ObservableCollection<AudioReferenceChoice> AuxiliaryReferences { get; } = [];
+    public string AuxiliarySummary => $"辅助参考（{AuxiliaryReferences.Count}/3，可选）";
     public string PromptText { get => promptText; set => SetProperty(ref promptText, value); }
     public string Text { get => text; set => SetProperty(ref text, value); }
     public string PromptLanguage { get => promptLanguage; set => SetProperty(ref promptLanguage, value); }
@@ -41,6 +44,22 @@ public sealed class MainViewModel : ObservableObject
         this.service = service;
         GenerateCommand = new AsyncRelayCommand(GenerateAsync, () => !IsBusy);
         CancelCommand = new RelayCommand(CancelCurrentOperation, () => IsBusy);
+        AuxiliaryReferences.CollectionChanged += (_, _) => OnPropertyChanged(nameof(AuxiliarySummary));
+    }
+    public void AddAuxiliaryReferences(IEnumerable<string> paths)
+    {
+        if (IsBusy) return;
+        Error = "";
+        foreach (var path in paths)
+        {
+            if (string.IsNullOrWhiteSpace(path) || !ReferenceAudioFormats.IsSupported(path) || !File.Exists(path))
+            { Error = "请选择有效的 WAV、MP3 或 OGG 辅助录音。"; continue; }
+            var full = Path.GetFullPath(path);
+            if (full.Equals(Path.GetFullPath(ReferencePath.Length > 0 ? ReferencePath : "."), StringComparison.OrdinalIgnoreCase)
+                || AuxiliaryReferences.Any(x => x.Path.Equals(full, StringComparison.OrdinalIgnoreCase))) continue;
+            if (AuxiliaryReferences.Count >= 3) { Error = "最多添加3条辅助录音，请选择同一个声音。"; break; }
+            AuxiliaryReferences.Add(new(full));
+        }
     }
     public void CancelCurrentOperation()
     {
@@ -68,7 +87,8 @@ public sealed class MainViewModel : ObservableObject
         IsBusy = true; Status = "正在准备…";
         try
         {
-            var input = new GenerationInput(EngineRoot, ReferencePath, PromptText, PromptLanguage, Text.Trim(), TextLanguage, IsMock, Device);
+            var input = new GenerationInput(EngineRoot, ReferencePath, PromptText, PromptLanguage, Text.Trim(), TextLanguage, IsMock, Device,
+                AuxiliaryReferences.Select(x => x.Path).ToArray());
             var progress = new Progress<string>(message => { if (IsBusy) Status = message; });
             var result = await service.GenerateAsync(input, progress, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
@@ -86,3 +106,7 @@ public sealed class MainViewModel : ObservableObject
 }
 public sealed record LanguageChoice(string Name, string Code);
 public sealed record DeviceChoice(string Name, ComputeDevice Code);
+public sealed record AudioReferenceChoice(string Path)
+{
+    public string Name => System.IO.Path.GetFileName(Path);
+}

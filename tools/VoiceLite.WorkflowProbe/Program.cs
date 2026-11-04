@@ -19,6 +19,11 @@ internal static class Program
     [STAThread]
     public static int Main(string[] args)
     {
+        if (args.Length == 2 && args[0] is "--quality" or "--references")
+        {
+            try { QualityComparison.RunAsync(args[1], args[0] == "--references").GetAwaiter().GetResult(); return 0; }
+            catch (Exception exception) { Console.Error.WriteLine(exception); return 1; }
+        }
         if (args.Length != 3)
         {
             Console.Error.WriteLine("Usage: VoiceLite.WorkflowProbe <engine> <reference.wav with .json transcript> <new-data-directory>");
@@ -53,20 +58,8 @@ internal sealed class WorkflowChecks(string[] arguments)
 
     public async Task RunAsync()
     {
-        var engine = Path.GetFullPath(arguments[0]);
+        var (engine, data) = PhysicalDirectories.ValidateExperiment(arguments[0], arguments[2]);
         var reference = Path.GetFullPath(arguments[1]);
-        var data = Path.GetFullPath(arguments[2]);
-        Require(Directory.Exists(engine), "Engine directory is missing.");
-        Require(!Directory.Exists(data) && !File.Exists(data), "Use a fresh data directory.");
-        Require(!HasLinkedAncestor(data) && !HasLinkedAncestor(engine),
-            "Test data must be outside the engine; use physical paths without directory links.");
-        engine = PhysicalDirectories.Resolve(engine);
-        data = PhysicalDirectories.Resolve(data);
-        var relativeData = Path.GetRelativePath(engine, data);
-        var outsideEngine = Path.IsPathRooted(relativeData) || relativeData == ".."
-            || relativeData.StartsWith(".." + Path.DirectorySeparatorChar, StringComparison.Ordinal);
-        Require(outsideEngine,
-            "Test data must be outside the engine; use physical paths without directory links.");
         using var transcript = JsonDocument.Parse(await File.ReadAllTextAsync(Path.ChangeExtension(reference, ".json")));
         var prompt = transcript.RootElement.GetProperty("text").GetString() ?? "";
         var language = transcript.RootElement.GetProperty("language").GetString() ?? "";
@@ -206,12 +199,6 @@ internal sealed class WorkflowChecks(string[] arguments)
         Require(!IPGlobalProperties.GetIPGlobalProperties().GetActiveTcpListeners().Any(x => x.Port == lease.Session.Endpoint.Port), "The stopped engine's port is still listening.");
     }
     private static int ResultCount(string data) => Directory.Exists(Path.Combine(data, "results")) ? Directory.GetFiles(Path.Combine(data, "results"), "*.wav").Length : 0;
-    private static bool HasLinkedAncestor(string path)
-    {
-        for (var directory = new DirectoryInfo(path); directory is not null; directory = directory.Parent)
-            if (directory.Exists && (directory.Attributes & FileAttributes.ReparsePoint) != 0) return true;
-        return false;
-    }
     private static void CheckTemporaryFiles(string data)
     {
         Require(!Directory.EnumerateFiles(data, "*.partial", SearchOption.AllDirectories).Any(), "A partial result was left behind.");

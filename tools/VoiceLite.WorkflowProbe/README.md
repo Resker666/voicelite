@@ -40,4 +40,45 @@ $env:VOICELITE_WORKFLOW_PROBE_DLL = "$PWD\tools\VoiceLite.WorkflowProbe\bin\Debu
 & '<引擎目录>\runtime\python.exe' -B -m unittest discover -s tools -p 'test_*.py' -v
 ```
 
-未设置这两个变量时，6项Windows工具边界测试会明确跳过，其余Python测试照常运行。
+未设置这两个变量时，8项Windows工具边界测试会明确跳过，其余Python测试照常运行；其中一项覆盖下面对照模式的输出目录保护，另一项使用Desktop Mock验证显式传入的无效辅助路径会在推理前被拒绝。
+
+## 固定种子的音色对照
+
+`--quality`模式不打开窗口，使用同一参考、同一句文案和同一种子依次生成温度1.0、同参数重复、0.8、0.6四段WAV。先用同一输入预热并丢弃输出，避免把首次特征/解码器初始化开销放入样本。仅连接本工具拥有的本地引擎，结束后回收；运行前先关闭日常VoiceLite以释放显存。
+
+准备私人JSON清单（不要将用户音频和含个人文本的实验清单提交Git）：
+
+```json
+{
+  "EngineRoot": "D:/VoiceLite/engine",
+  "ReferencePath": "D:/my-audio/reference.wav",
+  "PromptText": "参考录音实际说出的文字",
+  "Text": "你好，今天我们一起出去走走，顺便看看有什么有趣的事情吧。",
+  "DataRoot": "D:/VoiceLite-experiments/new-comparison",
+  "Seed": 20261103,
+  "PromptLanguage": "zh",
+  "TextLanguage": "zh"
+}
+```
+
+```powershell
+& "$env:DOTNET_ROOT\dotnet.exe" tools/VoiceLite.WorkflowProbe/bin/Debug/net8.0-windows/VoiceLite.WorkflowProbe.dll --quality '<私人清单.json>'
+```
+
+DataRoot必须是引擎之外的新目录，同样检查路径别名和目录链接。输出包括`A-default.wav`、`A-repeat.wav`、`B-temperature-0.8.wav`、`C-temperature-0.6.wav`、输入副本和`comparison-report.json`。报告记录重复音频的哈希是否相同、参考SHA、参数和耗时；GPU跨设备/跨运行仍可能存在差异。
+
+客户端请求类型新增`seed`、`temperature`，默认值仍为本地锁定API的-1和1。GUI尚未加入这两个控制项。生成成功表示输出有效，哪段更像要由用户试听；工具不自动选择“最好”的温度，也不把单次耗时差异当作温度性能结论。
+
+## 单参考与多参考对照
+
+在相同清单中增加`AuxiliaryReferences`数组，填写1–3条不同的同声线录音路径（每条3–10秒），并为本次实验指定新的`DataRoot`。只有主参考需要`PromptText`，辅助录音不需要填写文字：
+
+```json
+"AuxiliaryReferences": ["D:/my-audio/auxiliary-1.ogg", "D:/my-audio/auxiliary-2.wav"]
+```
+
+```powershell
+& "$env:DOTNET_ROOT\dotnet.exe" tools/VoiceLite.WorkflowProbe/bin/Debug/net8.0-windows/VoiceLite.WorkflowProbe.dll --references '<私人清单.json>'
+```
+
+两组都使用同一主参考、参考文字、合成文案、种子和温度1.0。单参考与多参考条件各自预热并丢弃预热输出，随后输出`A-single.wav`、`A-repeat.wav`、`D-multi.wav`、`D-repeat.wav`。报告记录各组重复是否逐字节一致以及全部输入SHA是否保持不变；依旧由用户听选，不自动声明相似度提高。

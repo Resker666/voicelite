@@ -35,6 +35,17 @@
               <TextBlock Text="请逐字填写，与录音内容保持一致。" Foreground="#68788D" FontSize="12" Margin="0,6,0,0" TextWrapping="Wrap" />
               <TextBlock Text="参考语言" Style="{StaticResource Label}" Margin="0,12,0,7" />
               <ComboBox ItemsSource="{Binding Languages}" DisplayMemberPath="Name" SelectedValuePath="Code" SelectedValue="{Binding PromptLanguage}" AutomationProperties.Name="参考语言" />
+              <Expander x:Name="AuxiliarySettings" Header="{Binding AuxiliarySummary}" Margin="0,14,0,0">
+                <StackPanel Margin="0,8,0,0">
+                  <TextBlock Text="可补充同一声音的1–3条录音，每条3–10秒。只需填写主参考的文字；更换主参考会清空辅助录音。" Foreground="#68788D" FontSize="12" TextWrapping="Wrap" />
+                  <ListBox x:Name="AuxiliaryList" ItemsSource="{Binding AuxiliaryReferences}" DisplayMemberPath="Name" Height="70" Margin="0,8,0,8" AutomationProperties.Name="辅助参考录音" />
+                  <WrapPanel>
+                    <Button Content="添加录音" Click="AddAuxiliary_Click" Padding="10,6" Margin="0,0,4,4" />
+                    <Button Content="试听选中" Click="PlayAuxiliary_Click" Padding="10,6" Margin="0,0,4,4" />
+                    <Button Content="移除选中" Click="RemoveAuxiliary_Click" Padding="10,6" Margin="0,0,0,4" />
+                  </WrapPanel>
+                </StackPanel>
+              </Expander>
             </StackPanel>
           </Border>
           <Border Grid.Column="2" Style="{StaticResource Card}">
