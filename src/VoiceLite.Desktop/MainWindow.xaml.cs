@@ -21,6 +21,9 @@ public partial class MainWindow : Window
     private Task? cleanup;
     private Task environmentCheck = Task.CompletedTask;
     private bool mayClose;
+    private DatasetWindow? datasetWindow;
+    private TrainingWindow? trainingWindow;
+    private bool openingDataset, closeRequested;
     public MainWindow(MainViewModel vm, IEngineManager manager, SettingsStore store, string dataRoot)
     {
         this.vm = vm; this.manager = manager; this.store = store; this.dataRoot = dataRoot;
@@ -42,6 +45,52 @@ public partial class MainWindow : Window
         StopPlayback();
         await vm.ImportRoleAsync(dialog.FileName);
         AuxiliarySettings.IsExpanded = vm.AuxiliaryReferences.Count > 0;
+    }
+    private async void Dataset_Click(object sender, RoutedEventArgs e)
+    {
+        if (!vm.CanEdit || cleanup is not null || datasetWindow is not null || openingDataset || closeRequested) return;
+        openingDataset = true; IsEnabled = false;
+        StopPlayback();
+        try
+        {
+            await manager.StopAsync();
+            if (closeRequested) return;
+            datasetWindow = CreateDatasetWindow(); IsEnabled = true; datasetWindow.ShowDialog();
+        }
+        catch (Exception exception) { new AppLog(dataRoot).Write("open-materials", exception.GetType().Name); }
+        finally { datasetWindow = null; openingDataset = false; if (!closeRequested) IsEnabled = true; }
+    }
+    private DatasetWindow CreateDatasetWindow() => new(new DatasetViewModel(new DatasetService(dataRoot), new OfflineTranscriber(dataRoot)) { EngineRoot = vm.EngineRoot }, dataRoot) { Owner = this };
+    public async Task RunDatasetSmokeAsync(IReadOnlyList<string> sources, string asrEngine)
+    {
+        datasetWindow = CreateDatasetWindow(); datasetWindow.Show();
+        try { await datasetWindow.RunSmokeAsync(sources, asrEngine); }
+        finally { await datasetWindow.CloseSafelyAsync(); datasetWindow = null; }
+    }
+    public async Task<string> RunTrainingSmokeAsync(string datasetId, string engine, string output)
+    {
+        StopPlayback(); await manager.StopAsync();
+        var model = new TrainingViewModel(new TrainingService(dataRoot), datasetId) { EngineRoot = engine, Name = "已校对素材新版本" };
+        trainingWindow = new(model, dataRoot) { Owner = this }; trainingWindow.Show();
+        try { return await trainingWindow.RunSmokeAsync(output); }
+        finally { await trainingWindow.CloseSafelyAsync(); trainingWindow = null; }
+    }
+    public async Task RunWindowCloseSmokeAsync()
+    {
+        async Task CloseOnceAsync(Window child)
+        {
+            var closed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            child.Closed += (_, _) => closed.TrySetResult(); child.Show();
+            await Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+            child.Close();
+            try { await closed.Task.WaitAsync(TimeSpan.FromSeconds(2)); }
+            finally { if (!closed.Task.IsCompleted) child.Close(); }
+        }
+        await CloseOnceAsync(new TrainingWindow(new TrainingViewModel(new TrainingService(dataRoot), Guid.NewGuid().ToString("N")), dataRoot) { Owner = this });
+        await CloseOnceAsync(CreateDatasetWindow());
+        var mainClosed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously); Closed += (_, _) => mainClosed.TrySetResult();
+        Close(); await mainClosed.Task.WaitAsync(TimeSpan.FromSeconds(3));
+        await File.WriteAllTextAsync(Path.Combine(dataRoot, "window-close-smoke.json"), JsonSerializer.Serialize(new { passed = true, first_close_training = true, first_close_dataset = true, first_close_main = true, real_wpf = true, model_run = false }));
     }
     private void Role_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e) => StopPlayback();
     private void SelectReference_Click(object sender, RoutedEventArgs e)
@@ -154,9 +203,12 @@ public partial class MainWindow : Window
     }
     public async Task CloseSafelyAsync()
     {
+        closeRequested = true;
+        if (trainingWindow is not null) await trainingWindow.CloseSafelyAsync();
+        if (datasetWindow is not null && !await datasetWindow.CloseSafelyAsync()) { closeRequested = false; return; }
         IsEnabled = false;
         cleanup ??= CleanupAsync(); await cleanup;
-        if (!mayClose) { mayClose = true; Close(); }
+        await Dispatcher.InvokeAsync(() => { if (!mayClose) { mayClose = true; Close(); } });
     }
     private async Task CleanupAsync()
     {

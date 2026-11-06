@@ -1,5 +1,27 @@
 # Independent code review — 2026-11-02
 
+## 0.1.6 训练闭环复审 — 2026-11-05
+
+按executing-plans / requesting-code-review，独立只读reviewer检查本轮训练服务/VM/WPF/CLI/导出、既有角色兼容及对应测试；未编辑文件、运行模型或再派reviewer。结论：**无具体Critical / Important，无需复审驱动修复轮次**。
+
+审查覆盖独立冻结目录、推理释放与模态窗口、取消/关闭等待、坏任务隔离、权重摘要、兼容ZIP和实际上游续训日志格式。作者先用失败回归修复null参考数组、超大run清单、按创建时间恢复记录；针对性14项训练相关测试与完整137项C#通过。续训日志误报有独立失败回归，6项Python训练导出测试及完整52项通过。
+
+明确未由静态审查裁定：音色/发音质量（需听选）、真实GPU/最终发布包运行（由主流程另验）、此前0.1.5功能及用户后置的公开发行门禁。主流程已完成真实模型和GUI验证，详情见TEST_REPORT。没有把静态无问题扩大为质量或所有硬件保证。
+
+后续主流程正常模式终检发现空闲TrainingWindow清理同步完成时在Closing内重入Close，触发WPF VerifyNotClosing。新增真实WPF单次Close/Closed事件回归先RED（CLR异常退出），三个窗口均改为Dispatcher.InvokeAsync排队实际Close后GREEN。原reviewer只针对这项修复复核，确认无剩余Important；没有再次全量复审或运行模型。自动回归采用显式shutdown，随后独立修正版的普通模式三个窗口实际一次关闭/重开也已验证，补足该覆盖差异。
+
+## 0.1.5 素材管理与通用训练入口 — 2026-11-05
+
+依照requesting-code-review，由独立只读reviewer检查本轮素材库/ASR/Core/窗口/训练CLI及测试；未修改代码或运行模型。发现2项Important、1项Minor，均先新增回归观察RED，再修复并运行完整46项Python测试及针对性复核：
+
+| 发现 | 修复与证据 |
+|---|---|
+| 英文数据不产生BERT文件，特征验收却一律要求BERT | 仅中文要求3-bert；新增英文特征通过回归 |
+| 修改清单/标签后可沿用旧upstream.list与特征缓存 | init冻结dataset.json、train.list、upstream.list摘要，后续阶段必须一致；变化或旧格式运行记录要求新建工作目录，避免旧特征配新标签 |
+| Path.absolute保留点点，目录包含判断可能被绕过 | 先拒绝路径上的链接，再resolve规范化后比较边界；加入`..`回归 |
+
+同一reviewer针对三个修复复核，确认全部关闭，无剩余Important。作者另外通过失败回归修复素材null条目和2MB清单保存边界，导出复制后重验SHA；全C#125/125通过。真实ASR/窗口/取消及E合成证据见TEST_REPORT。静态复审与配置测试不代表新的通用训练入口已实际跑完GPU训练，本轮明确未执行该阶段。
+
 ## 0.1.4 角色包导入复审 — 2026-11-04
 
 依据 requesting-code-review / executing-plans，由独立只读 reviewer 审查本轮未提交的 Core/Infrastructure/Desktop/角色测试及计划。没有启动模型或编辑代码；真实 GUI 由主流程另行验收。

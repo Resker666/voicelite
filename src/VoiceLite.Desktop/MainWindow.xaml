@@ -25,6 +25,7 @@
           <StackPanel IsEnabled="{Binding CanEdit}">
             <TextBlock Text="声音角色" FontSize="19" FontWeight="Bold" Margin="0,0,0,10" />
             <DockPanel>
+              <Button DockPanel.Dock="Right" Content="训练素材" Click="Dataset_Click" Margin="10,0,0,0" />
               <Button DockPanel.Dock="Right" Content="导入角色包" Click="ImportRole_Click" Margin="10,0,0,0" />
               <ComboBox x:Name="RoleList" ItemsSource="{Binding Roles}" DisplayMemberPath="DisplayName" SelectedItem="{Binding SelectedRole}" SelectionChanged="Role_SelectionChanged" AutomationProperties.Name="声音角色" />
             </DockPanel>

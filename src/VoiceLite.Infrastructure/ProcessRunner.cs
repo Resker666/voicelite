@@ -1,12 +1,13 @@
 using System.Diagnostics;
 using System.ComponentModel;
+using System.Text;
 using VoiceLite.Core;
 namespace VoiceLite.Infrastructure;
 
 internal static class ProcessRunner
 {
     internal sealed record Result(int ExitCode, string Output, string Error);
-    internal static async Task<Result> RunAsync(ProcessStartInfo info, TimeSpan timeout, CancellationToken cancellationToken)
+    internal static async Task<Result> RunAsync(ProcessStartInfo info, TimeSpan timeout, CancellationToken cancellationToken, Action<string>? onOutputLine = null)
     {
         cancellationToken.ThrowIfCancellationRequested();
         info.UseShellExecute = false; info.CreateNoWindow = true;
@@ -18,8 +19,8 @@ internal static class ProcessRunner
         try
         {
             child = WindowsChildProcess.Create(info); child.ResumeInto(job);
-            var output = child.StandardOutput.ReadToEndAsync(deadline.Token);
-            var error = child.StandardError.ReadToEndAsync(deadline.Token);
+            var output = onOutputLine is null ? child.StandardOutput.ReadToEndAsync(deadline.Token) : PumpAsync(child.StandardOutput, onOutputLine, deadline.Token);
+            var error = onOutputLine is null ? child.StandardError.ReadToEndAsync(deadline.Token) : PumpAsync(child.StandardError, null, deadline.Token);
             await child.Process.WaitForExitAsync(deadline.Token);
             return new(child.Process.ExitCode, await output, await error);
         }
@@ -34,5 +35,21 @@ internal static class ProcessRunner
                 child.Dispose();
             }
         }
+    }
+    private static async Task<string> PumpAsync(StreamReader reader, Action<string>? onLine, CancellationToken cancellationToken)
+    {
+        var captured = new StringBuilder(); var pending = new StringBuilder(); var buffer = new char[4096]; int read;
+        while ((read = await reader.ReadAsync(buffer.AsMemory(), cancellationToken)) > 0)
+        {
+            captured.Append(buffer, 0, read);
+            if (captured.Length > 65536) captured.Remove(0, captured.Length - 65536);
+            if (onLine is null) continue;
+            foreach (char character in buffer.AsSpan(0, read).ToArray())
+            {
+                if (character == '\n') { onLine(pending.ToString()); pending.Clear(); }
+                else if (pending.Length < 1024) pending.Append(character);
+            }
+        }
+        return captured.ToString();
     }
 }

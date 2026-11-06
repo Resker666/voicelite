@@ -1,5 +1,79 @@
 # VoiceLite 验证报告
 
+## 0.1.6 真实训练、角色导出与GUI — 2026-11-05
+
+沿用859691e之后尚未提交的0.1.5实现。用户“下一步继续做”时，本机素材集 `0ec386011cd743fd8886a136a2f62209` 已由用户标记18/18校对、revision3；本轮只读导出，未自动勾选。规范化副本约116.085秒，标记来自用户操作，不是独立质量认证。
+
+下表 `$p` 为 `E:\develop\github\voicelite\.artifacts\training-016-20261105`，`$sdk` 为工作区 `.tools\dotnet\dotnet.exe`8.0.427，`$py` 为 `E:\ai\voice\GPT-SoVITS-v2pro-20261006\runtime\python.exe`，`$engine` 为该原完整包，`$daily` 为工作区 `dist\VoiceLite 离线验证 0.1.0`。SDK使用项目内DOTNET_ROOT/CLI_HOME/NuGet缓存，FFmpeg测试设 `VOICELITE_TEST_ENGINE_ROOT=$engine`。
+
+| 实际命令或操作 | 实际结果与证据 |
+|---|---|
+| 私有 `$sdk run --project $p/probe/Probe.csproj --no-restore -- $p/exports $p/export-report.json` | 18条已校对副本导出，用户源清单SHA `ec697b1ee5a6761187fec387b4c703fc5aef38f0f650f5b9c7c5f24fff30f8bd`前后不变。导出目录 `VoiceLite-dataset-0ec38601-9c3d1dec`，`export-report.json` |
+| `$py -B -u $p/run_real_cli.py`，实际依次调用 `tools/training_cli.py validate` / `init` / `features` / `sovits --epochs 8` | 四阶段exit0，0.250/3.734/69.157/**222.672秒**。原四项特征匹配18条；真实8轮生成推理权重和完整G/D。`logs`、`real-work/commands.jsonl`记录完整argv/退出码 |
+| 上述编排的 `sovits --epochs 9 --resume` | 训练子进程exit0、67.203秒，G/D从8恢复且保存9轮，`VOICELITE_VERIFIED_CHECKPOINTS 9`；但CLI旧判断依赖上游不存在的“loaded G”，**顶层exit1误报**。`real-cli-report.json`保留passed=false，未改为成功 |
+| 新增实际日志格式回归先RED，修复 `verify_resume_log` 后 `$py -B $p/recover_resume.py` | 严格核对真实G/D Loaded checkpoint行、iteration8及目标9标记，先备份旧run.json，再凭证据核对元数据至9（未改权重）；正式CLI **9→10轮完整续训exit0，67.718秒**。`resume-recovery-report.json` passed=true；G/D/优化器与前轮备份保留 |
+| `$py -B -m unittest discover -s tools -p test_training_export.py -v`；C# TrainingService/VM过滤测试 | 新功能5→6项Python、服务5项/VM4项均RED→GREEN；坏null参考/过大run/历史顺序3项先RED后GREEN。最终训练相关过滤14/14；动态数组Count是测试反射问题，改正式接口类型后通过 |
+| `$sdk restore VoiceLite.sln --source .tools/nuget --disable-parallel --force-evaluate` 后locked-mode；WorkflowProbe同样恢复 | exit0，版本0.1.6，未新增依赖、未联网下载，`restore-version.log` |
+| `$sdk build VoiceLite.sln --no-restore --disable-build-servers -m:1 -v minimal`；同样build WorkflowProbe | **0警告、0错误**，`build-full.log`、`probe-build.log` |
+| `$sdk test VoiceLite.sln --no-restore --no-build --disable-build-servers -m:1 --logger "trx;LogFileName=full-first.trx" --results-directory $p/tests` | **137/137通过，0跳过**，真实FFmpeg启用；`tests/full-first.trx` |
+| 设置WorkflowProbe SDK/DLL环境变量后 `$py -B -m unittest discover -s tools -p "test_*.py" -v` | **52/52通过，0跳过**，15.193秒，`python-full-first.log` |
+| `$sdk publish src/VoiceLite.Desktop/VoiceLite.Desktop.csproj -c Release -r win-x64 --self-contained true --no-restore --disable-build-servers -m:1 -o $p/client` | 首次及最终exit0，训练CLI/进程/导出脚本与profile随发布；`publish-first.log`、`publish-final.log`。最终加入清单边界、任务排序与日志按钮；模型算法未改 |
+| `$py -B $p/run_gui.py`，实际WPF `--smoke-training --data-dir $p/ui-real --engine $daily/engine --device nvidia --training-engine $engine --training-dataset <上述ID>` | **真实独立GUI8轮→选参考→ZIP保存通过，292.4649秒**；随后现有RoleLibrary导入并真实合成/导出/完整播放 **4.66秒@32kHz**，mock=false，103.1253秒。整体400.093秒，`gui-report.json`、`ui-real/training-smoke.json`、`ui-smoke.json`；截图已检查 |
+| 私有probe `--cancel $p/cancel-real <已校对导出> $engine` | 最终服务真实启动初始化/特征后12秒取消，Cancelled记录与输入保留，未发现模型残留；`cancel-real/cancel-report.json`。这是实际进程取消，不将VM假服务测试冒充模型取消 |
+| 独立只读 whole-feature 复审 | 无Critical/Important；不代替模型/GUI验收，不裁定音色。`CODE_REVIEW.md` |
+| 私有Compare工具（引用当前Core/Infrastructure）执行 `$p/comparison-plan.json` | 原E、新8、新10共**12段**（3句+首句重复），固定原E主/两辅助、seed20261103、temperature1，逐组预热并关闭，输入SHA不变，三组重复SHA均一致；`comparison/comparison-report.json` passed=true |
+| `$py -B $p/final_audit.py` | 原222源码、4底模、18原录音、旧E ZIP SHA全部不变；9条非重复WAV逐条FFmpeg解码且非静音。三份15.4秒试听副本约**-24dBFS**，峰值约-5.20/-5.18/-5.08dBFS，无削波，原WAV未改；`final-audit.json` |
+| 打包说明文本更新后 `$py -B -m unittest discover -s tools -p test_client_update.py -v` | 更新子集**10/10通过**，4.352秒，`update-tests.log`；属于完整52项中的子集复核 |
+| `$py -B tools/package-client-update.py $p/client .artifacts/voicelite-013-20261103/base-010-package-files.json dist/VoiceLite-0.1.6-client-update packaging/START_HERE.txt`；`apply-client-update.py ... --check` 后 `--backup dist/VoiceLite-0.1.6-home-backup-20261105` | 20安装payload，2317453字节ZIP，SHA256 `52424a8beda5af72b9515696620da391000bc3e0ccfdbcc1599016bc03f4aaa0`；校验/备份应用exit0，日常EXE0.1.6.0，`update-package/check/applied.json` |
+| `$py -B tools/verify-package.py $daily` | exit0，**40627文件、11520011478字节**完整SHA通过，`package-full-sha.log`，清单版本0.1.6 |
+| 将真实GUI导出的新8轮ZIP复制至dist，并用既有RoleLibrary导入本机库 | 305317457字节，SHA256 `2be06bdec331bd7176463329d888b1187835f891f74f91d37ca989e33926b7e7`；旧角色保留、默认设置SHA未改，`user-role-installed.json` |
+| 正常模式窗口终检；新增 `$py -B $p/run_close.py $p/close-red-client $p/close-red` | 首次关闭TrainingWindow时清理同步完成，Closing内Close重入；真实进程exit **3762504530 (0xE0434352)**，无完成报告。Windows.NET事件明确InvalidOperationException/VerifyNotClosing及TrainingWindow.CloseCoreAsync栈，`close-red.log` |
+| 三个窗口实际Close改为Dispatcher排队，`$py -B $p/run_close.py $p/client $p/close-green` | **exit0**，实际训练/素材/主窗口均一次Close后收到Closed；model_run=false，不冒充训练取消验收。`close-green/window-close-smoke.json`；原reviewer针对性确认修复，无剩余Important |
+| 关闭修复后再次build solution及完整test，TRX `final.trx` | **0警告/错误，137/137通过，0跳过**，`build-final.log`、`tests-final.log`。Python代码除已复核的更新说明外未再变化，完整52项记录仍以上述实际执行为准 |
+| 保存首候选和记录到 `rejected-first-update`，重新执行packager | 最终20payload，**2319556字节**，SHA256 `b8f9f24143a9bc029c3b8f3118e9588f3273de97b6faddcdecd3649fa0486ba6`。上表2317453字节/52424a…/全包40627记录对应首候选，**不是最终关闭修正版安装记录** |
+| 尝试回收旧空闲验收窗口以覆盖修正；自动审批拒绝 | 强制结束操作**未执行**。拒绝理由是仅凭路径无法证明窗口归属、可能丢未保存输入；已请求用户保存关闭或明确授权。原目录修正覆盖保留待处理，未绕过拒绝 |
+| 将最终发布复制到 `dist/VoiceLite-0.1.6-client`，逐文件SHA；computer-use普通模式运行 | **476文件SHA一致**，读取已保存的原engine路径；实际E仍默认、新8轮候选可选、18/18校对恢复，三个窗口各一次关闭成功、主窗口重开正常。修正版窗口保持打开、未自动训练/生成；`side-client.json` |
+| 用户回复“已保存并关闭VoiceLite”后CIM复核；`apply-client-update.py <最终更新> $daily --check` 后 `--backup dist/VoiceLite-0.1.6-close-fix-backup-20261105` | 无VoiceLite/模型进程，ZIP SHA仍b8f9f…；校验20文件、备份安装各exit0。`update-close-fixed-check.json`、`update-close-fixed-applied.json`。强制结束操作从未执行 |
+| `$py -B tools/verify-package.py $daily`，最终修正版单独核验 | exit0，**40627文件、11520017274字节**完整SHA通过；`package-close-fixed-full-sha.log`。这是关闭修正后的正式安装结果，与首候选记录区分 |
+| `$py -B $p/run_close.py $daily $p/installed-close-fixed`；computer-use启动原目录EXE | exit0，原安装目录真实WPF三窗口首次Close/Closed均通过、无模型加载；`installed-close-fixed/window-close-smoke.json`。正式入口0.1.6正常打开，默认E/原参考恢复，未自动训练或生成 |
+
+这次真实训练使用单RTX4070 Laptop 8188MiB。CLI初次编排约1秒采样整板显存峰值6558MiB（338次样本，含其它应用），不是精确峰值或所有素材的最低显存。模型技术成功不等于相似度提升；对照报告和导出metadata均保留quality/similarity未听选状态。新增/改标签必须新建冻结目录；GUI当前新建固定8轮任务，不自动恢复执行中断或跨数据续训。
+
+真实失败均保留：第9轮验收误报如上，没有重写上游日志或权重；修复后另行验证9→10，而非把失败命令标成exit0。测试里的反射数组Count仅在确认测试类型原因后修正。窗口关闭异常有真实失败与事件日志，再修复、回归和普通模式验收。没有下载模型、安装依赖或覆盖既有Python；训练/ASR完整资源未打入这个客户端小更新，公开发行/干净机器/CPU TTS仍沿用已有范围。
+
+## 0.1.5 素材管理、离线转写与训练入口整理 — 2026-11-05
+
+基线859691e（已推送的0.1.4）。本轮在当前工作区新增独立素材窗口、受管音频副本、文字校对/保存/训练集导出和本地中文ASR，并整理通用训练CLI。没有重新训练用户角色，也没有把历史微调成功当成本轮CLI的训练验收。
+
+以下 `$p` 为 `E:\develop\github\voicelite\.artifacts\datasets-015-20261104`，`$sdk` 为工作区 `.tools\dotnet\dotnet.exe`8.0.427，`$py` 为已有整合包 `E:\ai\voice\GPT-SoVITS-v2pro-20261006\runtime\python.exe`，`$engine` 为该整合包目录，`$daily` 为工作区 `dist\VoiceLite 离线验证 0.1.0`。日期后缀为任务开始日；完成日在11-05。SDK配置使用项目内DOTNET_ROOT、CLI_HOME及NuGet缓存；真实FFmpeg测试设置 `VOICELITE_TEST_ENGINE_ROOT=$engine`。
+
+| 实际命令或操作 | 实际结果与证据 |
+|---|---|
+| `$sdk restore VoiceLite.sln --source .tools/nuget --disable-parallel --force-evaluate`，再以 `--locked-mode` restore；WorkflowProbe同样更新锁文件并locked restore | exit0，项目版本更新0.1.5，未新增NuGet依赖或联网下载 |
+| 分别执行DatasetServiceTests、OfflineTranscriberTests、DatasetViewModelTests过滤测试 | 初始用例先RED后GREEN；坏清单null条目、超过2MB保存分别新增RED回归再修复。最终素材服务12项、ASR4项、ViewModel4项通过，保留各次TRX |
+| `$sdk build VoiceLite.sln --no-restore --disable-build-servers -m:1 -v minimal` | **0警告、0错误**，`$p/build-final.log` |
+| `$sdk test VoiceLite.sln --no-restore --no-build --disable-build-servers -m:1 --logger "trx;LogFileName=v015-final.trx" --results-directory $p/tests` | **125/125通过，0跳过**，`$p/tests/v015-final.trx`；实际使用本机FFmpeg |
+| `$sdk build tools/VoiceLite.WorkflowProbe/VoiceLite.WorkflowProbe.csproj --no-restore --disable-build-servers -m:1 -v minimal`，设置probe SDK/DLL环境变量后 `$py -B -m unittest discover -s tools -p "test_*.py" -v` | **46/46通过，0跳过**，13.701秒，`$p/python-final.log`；其中Windows Job两项使用真实父/子进程，验证父进程结束后的子进程回收与超时终止，无模型加载 |
+| `$sdk publish src/VoiceLite.Desktop/VoiceLite.Desktop.csproj -c Release -r win-x64 --self-contained true --no-restore --disable-build-servers -m:1 -o $p/client` | exit0，生成0.1.5自包含WPF客户端和离线转写桥接 |
+| `$sdk build $p/probe/Probe.csproj ...`，随后 `$sdk $p/probe/bin/Debug/net8.0/Probe.dll $p/asr-real $engine <3.03秒参考WAV> <Vision.ogg>` | **真实CPU ASR两段完成**，37.1667秒；原音频SHA不变、全部未人工校对、未校对导出被拒绝。`asr-real/asr-report.json` |
+| 同一私有probe以 `$p/asr-cancel $engine --cancel <两参考>` 启动真实转写，2秒后取消 | 取消返回，临时ASR任务目录0；`asr-cancel/cancel-report.json` passed=true |
+| `$p/client/VoiceLite.exe --smoke-dataset --data-dir $p/ui-final --engine $daily/engine --asr-engine $engine --dataset-reference <3.03秒参考> --dataset-extra <Vision.ogg>` | **实际WPF闭环通过**，两条真实CPU草稿、3.03秒完整试听、测试专用文字/校对标记保存重开、只导出1条，17.5388秒。`ui-final/dataset-smoke.json`；最终窗口截图已检查，校对复选框固定可见 |
+| 上述UI命令改用 `$daily/engine` 作ASR资源，独立目录 `$p/ui-missing-asr`；由 `$py -B $p/gui_followups.py` 汇总 | **预期失败路径通过**：exit1并明确“离线中文转写资源不完整”，没有模型下载；`gui-followups.json`两种预期匹配。日常推理包确实缺ASR模型，原完整包具备资源 |
+| `$py -B tools/training_cli.py validate --dataset <ui-real导出目录>`，再 `init --engine $engine --dataset <该目录> --work $p/formal-training-work-final` | exit0；真实导出验证、222项锁定源码复制、4个本地资源junction、独立配置/清单/冻结摘要生成完成，未运行GPU特征或训练。该输入的校对标记只用于自动化状态验收，**不代表人工确认内容** |
+| 新训练CLI英文特征、冻结输入变更及点点路径回归；修复后完整Python套件及独立针对性复核 | 三项先RED后GREEN；英文不再要求不存在的BERT，改数据必须新建工作目录，`..`规范化后检查边界。复核关闭全部Important，详见CODE_REVIEW |
+| `tools/validate-offline.ps1 -PackageRoot $p/client -EngineRoot $daily/engine -ReferencePath <3.03秒参考> -RolePackage dist/VoiceLite-hutao-E-experimental-20261104.zip -DataRoot $p/ui-tts-real -Device nvidia -TimeoutSeconds 420` | **真实E角色合成/导出/播放通过**，4.06秒、32kHz、两辅助，完整流程48.9151秒，mock=false；`ui-tts-real/ui-smoke.json`。整板显存约1秒采样峰值4284MiB，非精确峰值或最低配置结论 |
+| 更新打包器说明文本后 `$py -B -m unittest discover -s tools -p test_client_update.py -v` | **10/10通过**，4.905秒，`client-update-tests.log`，是对完整46项中的更新子集复核 |
+| `$py -B tools/package-client-update.py $p/client .artifacts/voicelite-013-20261103/base-010-package-files.json dist/VoiceLite-0.1.5-client-update packaging/START_HERE.txt` | exit0，15安装payload，2266925字节ZIP，SHA256 `2dcb66633bef19f1d53047e8a1d79aaa285363a034318035d89b71431f701e19`，`update-package.json` |
+| `$py -B tools/apply-client-update.py dist/VoiceLite-0.1.5-client-update $daily --check`，再 `--backup dist/VoiceLite-0.1.5-home-backup-20261105` | exit0，校验与备份安装完成，日常EXE0.1.5.0；`update-check.json`、`update-applied.json` |
+| `$py -B tools/verify-package.py $daily` | exit0，**40622文件、11519877733字节**完整SHA通过，`package-full-sha.log`；引擎沿用原包 |
+| 私有probe新增 `--seed <旧selection.json> $daily $engine $p/user-seed` | 18段原素材副本及旧机器草稿导入用户素材库，116.0854秒、已校对0条，源SHA与原主界面设置SHA不变，未校对导出拒绝；`user-seed/seed-report.json`。该工具初次构建的局部变量作用域冲突已修正，最终构建0警告/错误 |
+| computer-use：启动日常EXE，点击“训练素材”，展开资源、正常关闭后再次打开 | 确认0.1.5、E角色保留，18条待校对及原完整包资源路径恢复；未修改草稿或勾选用户校对。关闭后首次重开UI自动化遇到geometry unavailable，重新观察并激活主窗口后重试成功，非产品故障；窗口留给用户继续校对 |
+| `git diff --check`、`git status --short`、`git check-ignore`及CIM/临时目录复核 | exit0，候选仅源码/配置/文档/测试；模型/录音/ZIP/SDK仍被忽略。锁定API SHA不变，无API/ASR/训练模型进程，ASR临时任务及真实TTS临时参考均0；只有交付用日常窗口保留。`verification-summary.json`记录125/46、全包校验、18条且0已校对、未训练/未提交/未推送 |
+
+真实GUI自动化仅在新的私有测试目录设置过测试校对标记，报告明确 `human_transcripts_verified=false`。导入的是独立规范化副本，原录音不改；转写不会覆盖已有文字，也不会自动标成已校对。新CLI的 `features` / `sovits` / 恢复流程本轮**没有实际启动模型执行**，只完成输入/配置/状态/受控进程验证与真实初始化；不能将其描述为通用训练端到端通过。CPU ASR通过也不等于CPU声音合成验收。
+
+真实执行中的修正：私有probe初版项目相对引用多一层导致构建失败，修正为 `../../../src` 后构建通过。null条目和过大JSON保存由新增失败测试复现后修复；ASR缺资源用例的非零退出是预期结果。没有把这些失败算作成功，没有更换已有Python环境或下载模型。当前完整离线基包未重新制作，中文转写需选择已有兼容完整资源；正式开发者命令和边界见TRAINING_CLI.md。
+
 ## 0.1.4 角色包 GUI — 2026-11-04
 
 用户选 E（原 GPT + 微调 9 轮 SoVITS）后授权接入“导入角色包→选择角色→生成”。实现本机角色库、ZIP 兼容/清单/大小/SHA/路径/链接检查、生成前重验、设置恢复及自定义输入保留。引擎启动配置同时指定两组权重；角色变化通过现有 manager 结束旧 Job 并启动新进程，HTTP 继续只连接已确认拥有的 127.0.0.1。没有新增训练 GUI 或改动上游算法。

@@ -11,7 +11,11 @@ public partial class App : Application
     {
         base.OnStartup(e);
         string? Arg(string name) { int i = Array.IndexOf(e.Args, name); return i >= 0 && i + 1 < e.Args.Length ? e.Args[i + 1] : null; }
-        bool smoke = e.Args.Contains("--smoke-ui");
+        bool datasetSmoke = e.Args.Contains("--smoke-dataset");
+        bool trainingSmoke = e.Args.Contains("--smoke-training");
+        bool windowCloseSmoke = e.Args.Contains("--smoke-window-close");
+        bool smoke = e.Args.Contains("--smoke-ui") || datasetSmoke || trainingSmoke || windowCloseSmoke;
+        string smokeFile = windowCloseSmoke ? "window-close-smoke.json" : trainingSmoke ? "training-smoke.json" : datasetSmoke ? "dataset-smoke.json" : "ui-smoke.json";
         var dataRoot = Arg("--data-dir") ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "VoiceLite");
         try
         {
@@ -68,6 +72,25 @@ public partial class App : Application
                     int code = 0;
                     try
                     {
+                        if (windowCloseSmoke) { await window.RunWindowCloseSmokeAsync(); return; }
+                        if (trainingSmoke)
+                        {
+                            var datasetId = Arg("--training-dataset") ?? throw new VoiceLiteException("训练验收需要 --training-dataset。");
+                            var fullEngine = Arg("--training-engine") ?? throw new VoiceLiteException("训练验收需要 --training-engine。");
+                            var output = await window.RunTrainingSmokeAsync(datasetId, fullEngine, Path.Combine(Path.GetFullPath(dataRoot), "trained-role.zip"));
+                            await vm.ImportRoleAsync(output);
+                            if (vm.Error.Length > 0) throw new VoiceLiteException(vm.Error);
+                            vm.Text = "你好，这是 VoiceLite 已校对素材训练的新声音版本。";
+                            await window.RunSmokeAsync(null); return;
+                        }
+                        if (datasetSmoke)
+                        {
+                            var reference = Arg("--dataset-reference") ?? throw new VoiceLiteException("素材验收需要 --dataset-reference。");
+                            var sources = new List<string> { Path.GetFullPath(reference) };
+                            if (Arg("--dataset-extra") is { } extra) sources.Add(Path.GetFullPath(extra));
+                            await window.RunDatasetSmokeAsync(sources, Arg("--asr-engine") ?? vm.EngineRoot);
+                            return;
+                        }
                         if (vm.ReferencePath.Length > 0 && File.Exists(Path.ChangeExtension(vm.ReferencePath, ".json")))
                         {
                             using var reference = JsonDocument.Parse(await File.ReadAllTextAsync(Path.ChangeExtension(vm.ReferencePath, ".json")));
@@ -80,7 +103,7 @@ public partial class App : Application
                     catch (Exception exception)
                     {
                         code = 1;
-                        await File.WriteAllTextAsync(Path.Combine(dataRoot, "ui-smoke.json"), JsonSerializer.Serialize(new { passed = false, error = exception.ToString() }));
+                        await File.WriteAllTextAsync(Path.Combine(dataRoot, smokeFile), JsonSerializer.Serialize(new { passed = false, error = exception.ToString() }));
                     }
                     finally { await window.CloseSafelyAsync(); Shutdown(code); }
                 };
@@ -89,7 +112,7 @@ public partial class App : Application
         }
         catch (VoiceLiteException exception)
         {
-            if (smoke) await File.WriteAllTextAsync(Path.Combine(dataRoot, "ui-smoke.json"), JsonSerializer.Serialize(new { passed = false, error = exception.Message }));
+            if (smoke) await File.WriteAllTextAsync(Path.Combine(dataRoot, smokeFile), JsonSerializer.Serialize(new { passed = false, error = exception.Message }));
             else MessageBox.Show(exception.Message, "VoiceLite");
             Shutdown(1);
         }

@@ -2,4 +2,9 @@
   <PropertyGroup><TargetFramework>net8.0</TargetFramework><RuntimeIdentifiers>win-x64</RuntimeIdentifiers><AllowUnsafeBlocks>true</AllowUnsafeBlocks></PropertyGroup>
   <ItemGroup><ProjectReference Include="../VoiceLite.Core/VoiceLite.Core.csproj" /></ItemGroup>
   <ItemGroup><Content Include="../../tools/engine_runner.py" Link="engine_runner.py" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" /></ItemGroup>
+  <ItemGroup><Content Include="../../tools/dataset_asr.py" Link="dataset_asr.py" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" /></ItemGroup>
+  <ItemGroup>
+    <Content Include="../../tools/training_*.py" Exclude="../../tools/test_*" Link="%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="../../packaging/training-profile.json" Link="training-profile.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>

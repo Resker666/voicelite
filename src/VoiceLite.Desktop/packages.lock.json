@@ -16,7 +16,7 @@
       "voicelite.infrastructure": {
         "type": "Project",
         "dependencies": {
-          "VoiceLite.Core": "[0.1.4, )"
+          "VoiceLite.Core": "[0.1.6, )"
         }
       }
     },
